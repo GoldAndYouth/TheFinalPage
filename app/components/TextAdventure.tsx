@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import AsciiArt from './AsciiArt';
 import { processGameAction, testApiConnection } from '../utils/llm';
 
@@ -21,6 +21,8 @@ interface TextAdventureProps {
   players: Player[];
 }
 
+const TURN_TIME_LIMIT = 60; // 60 seconds per turn
+
 export default function TextAdventure({ players }: TextAdventureProps) {
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -33,6 +35,31 @@ export default function TextAdventure({ players }: TextAdventureProps) {
     currentPlayer: players[0].id
   }));
   const [isApiLimited, setIsApiLimited] = useState(false);
+  const [timeRemaining, setTimeRemaining] = useState(TURN_TIME_LIMIT);
+  const [isTimerPaused, setIsTimerPaused] = useState(false);
+
+  // Timer effect
+  useEffect(() => {
+    if (isProcessing || isTimerPaused) return;
+
+    const timer = setInterval(() => {
+      setTimeRemaining(prev => {
+        if (prev <= 1) {
+          // Time's up - skip turn
+          handleSkipTurn();
+          return TURN_TIME_LIMIT;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isProcessing, isTimerPaused]);
+
+  // Reset timer when player changes
+  useEffect(() => {
+    setTimeRemaining(TURN_TIME_LIMIT);
+  }, [gameState.currentPlayer]);
 
   const handleCommand = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,6 +121,28 @@ export default function TextAdventure({ players }: TextAdventureProps) {
     setApiTestResult(result.message);
   };
 
+  const handleSkipTurn = () => {
+    const currentPlayerName = players.find(p => p.id === gameState.currentPlayer)?.name || 'Unknown';
+    const newHistory = [...gameState.history, `> ${currentPlayerName}'s turn was skipped (time's up)`];
+    
+    const currentPlayerIndex = players.findIndex(p => p.id === gameState.currentPlayer);
+    const nextPlayerIndex = (currentPlayerIndex + 1) % players.length;
+
+    setGameState(prev => ({
+      ...prev,
+      history: newHistory,
+      currentPlayer: players[nextPlayerIndex].id
+    }));
+  };
+
+  const handleExtendTime = () => {
+    setTimeRemaining(prev => Math.min(prev + 30, TURN_TIME_LIMIT));
+  };
+
+  const toggleTimer = () => {
+    setIsTimerPaused(prev => !prev);
+  };
+
   const currentPlayerName = players.find(p => p.id === gameState.currentPlayer)?.name || 'Unknown';
 
   return (
@@ -107,7 +156,7 @@ export default function TextAdventure({ players }: TextAdventureProps) {
         
         <div className="mb-4 p-2 border border-cyan-400 rounded bg-cyan-400/10">
           <h2 className="text-cyan-400 mb-2">Players</h2>
-          <div className="flex gap-4">
+          <div className="flex gap-4 mb-2">
             {players.map(player => (
               <div 
                 key={player.id} 
@@ -117,6 +166,31 @@ export default function TextAdventure({ players }: TextAdventureProps) {
                 {player.id === gameState.currentPlayer && ' (Current Turn)'}
               </div>
             ))}
+          </div>
+          <div className="flex items-center justify-between mt-2 text-sm">
+            <div className="flex items-center gap-2">
+              <span className={timeRemaining <= 10 ? 'text-red-400' : 'text-green-400'}>
+                Time Remaining: {timeRemaining}s
+              </span>
+              <button
+                onClick={toggleTimer}
+                className="px-2 py-1 text-xs bg-yellow-400 text-black rounded hover:bg-yellow-500 transition-colors"
+              >
+                {isTimerPaused ? 'Resume Timer' : 'Pause Timer'}
+              </button>
+              <button
+                onClick={handleExtendTime}
+                className="px-2 py-1 text-xs bg-blue-400 text-black rounded hover:bg-blue-500 transition-colors"
+              >
+                +30s
+              </button>
+            </div>
+            <button
+              onClick={handleSkipTurn}
+              className="px-2 py-1 text-xs bg-red-400 text-black rounded hover:bg-red-500 transition-colors"
+            >
+              Skip Turn
+            </button>
           </div>
         </div>
 
