@@ -5,7 +5,6 @@ import AsciiArt from './AsciiArt';
 import { processGameAction, testApiConnection } from '../utils/llm';
 
 interface GameState {
-  currentScene: string;
   currentLocation: string;
   inventory: string[];
   history: string[];
@@ -17,7 +16,6 @@ export default function TextAdventure() {
   const [apiTestResult, setApiTestResult] = useState<string>('');
   const [commandCount, setCommandCount] = useState(0);
   const [gameState, setGameState] = useState<GameState>({
-    currentScene: 'You stand at the entrance of a mysterious cave. The air is thick with anticipation. What would you like to do?',
     currentLocation: 'cave',
     inventory: [],
     history: ['You stand at the entrance of a mysterious cave. The air is thick with anticipation. What would you like to do?']
