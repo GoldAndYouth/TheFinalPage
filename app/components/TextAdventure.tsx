@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import AsciiArt from './AsciiArt';
-import { processGameAction } from '../utils/llm';
+import { processGameAction, testApiConnection } from '../utils/llm';
 
 interface GameState {
   currentScene: string;
@@ -14,6 +14,7 @@ interface GameState {
 export default function TextAdventure() {
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [apiTestResult, setApiTestResult] = useState<string>('');
   const [commandCount, setCommandCount] = useState(0);
   const [gameState, setGameState] = useState<GameState>({
     currentScene: 'You stand at the entrance of a mysterious cave. The air is thick with anticipation. What would you like to do?',
@@ -67,10 +68,27 @@ export default function TextAdventure() {
     }
   };
 
+  const handleTestApi = async () => {
+    setApiTestResult('Testing API connection...');
+    const result = await testApiConnection();
+    setApiTestResult(result.message);
+  };
+
   return (
     <div className="min-h-screen bg-black text-green-400 p-4 font-mono">
       <div className="max-w-2xl mx-auto">
         <div className="mb-4">
+          <button 
+            onClick={handleTestApi}
+            className="mb-4 px-4 py-2 bg-green-400 text-black rounded hover:bg-green-500 transition-colors"
+          >
+            Test API Connection
+          </button>
+          {apiTestResult && (
+            <div className="mb-4 p-2 border border-green-400 rounded">
+              {apiTestResult}
+            </div>
+          )}
           <AsciiArt scene={gameState.currentLocation} commandCount={commandCount} />
         </div>
         

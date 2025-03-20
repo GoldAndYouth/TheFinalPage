@@ -155,4 +155,48 @@ Player action: ${action}`;
     console.error('LLM Error:', error);
     return getFallbackResponse(context, action);
   }
+}
+
+export async function testApiConnection(): Promise<{success: boolean, message: string}> {
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.NEXT_PUBLIC_OPENAI_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: "gpt-3.5-turbo",
+        messages: [
+          { role: "user", content: "Say 'API test successful'" }
+        ],
+        temperature: 0.7,
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      console.error('API Test Error:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorData
+      });
+      return {
+        success: false,
+        message: `API Error: ${response.status} ${response.statusText} - ${JSON.stringify(errorData)}`
+      };
+    }
+
+    const data = await response.json();
+    return {
+      success: true,
+      message: data.choices?.[0]?.message?.content || 'Received response but no content'
+    };
+  } catch (error: any) {
+    console.error('API Test Error:', error);
+    return {
+      success: false,
+      message: `Error: ${error?.message || 'Unknown error'}`
+    };
+  }
 } 
