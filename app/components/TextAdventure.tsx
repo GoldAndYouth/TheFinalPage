@@ -20,8 +20,9 @@ export default function TextAdventure() {
     currentScene: 'You stand at the entrance of a mysterious cave. The air is thick with anticipation. What would you like to do?',
     currentLocation: 'cave',
     inventory: [],
-    history: []
+    history: ['You stand at the entrance of a mysterious cave. The air is thick with anticipation. What would you like to do?']
   });
+  const [isApiLimited, setIsApiLimited] = useState(false);
 
   const handleCommand = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,15 +30,18 @@ export default function TextAdventure() {
 
     try {
       setIsProcessing(true);
-      // Add user input to history
       const newHistory = [...gameState.history, `> ${input}`];
       
-      // Process the command through our LLM
       const result = await processGameAction(input, {
         currentLocation: gameState.currentLocation,
         inventory: gameState.inventory,
-        history: gameState.history.slice(-3) // Send last 3 interactions for context
+        history: gameState.history.slice(-3)
       });
+
+      // Check if API limit was reached
+      if (result.response.includes("API usage limit has been reached")) {
+        setIsApiLimited(true);
+      }
 
       // Update inventory based on LLM response
       const updatedInventory = [
@@ -45,22 +49,20 @@ export default function TextAdventure() {
         ...result.newItems
       ];
 
-      // Increment command count to trigger ASCII art update
       setCommandCount(prev => prev + 1);
 
       setGameState(prev => ({
         ...prev,
-        currentScene: result.response,
         currentLocation: result.location || prev.currentLocation,
         history: [...newHistory, result.response],
         inventory: updatedInventory
       }));
     } catch (error) {
       console.error('Game processing error:', error);
+      const errorMessage = "Something mysterious happened... (The magic seems to be failing)";
       setGameState(prev => ({
         ...prev,
-        currentScene: "Something mysterious happened... (The magic seems to be failing)",
-        history: [...gameState.history, `> ${input}`, "Something mysterious happened... (The magic seems to be failing)"]
+        history: [...gameState.history, `> ${input}`, errorMessage]
       }));
     } finally {
       setIsProcessing(false);
@@ -77,6 +79,11 @@ export default function TextAdventure() {
   return (
     <div className="min-h-screen bg-black text-green-400 p-4 font-mono">
       <div className="max-w-2xl mx-auto">
+        {isApiLimited && (
+          <div className="mb-4 p-2 border border-yellow-400 rounded bg-yellow-400/10 text-yellow-400">
+            ⚠️ API limit reached. The game needs to rest for now. Please try again later!
+          </div>
+        )}
         <div className="mb-4">
           <button 
             onClick={handleTestApi}
@@ -92,13 +99,15 @@ export default function TextAdventure() {
           <AsciiArt scene={gameState.currentLocation} commandCount={commandCount} />
         </div>
         
-        <div className="mb-4 h-[40vh] overflow-y-auto bg-black/50 p-4 rounded border border-green-400">
+        <div className="game-output mb-4 h-[40vh] overflow-y-auto bg-black/50 p-4 rounded border border-green-400">
           {gameState.history.map((text, i) => (
-            <div key={i} className="mb-2">
+            <div 
+              key={i} 
+              className={text.startsWith('> ') ? 'mb-2 text-cyan-400' : 'mb-2 text-green-400'}
+            >
               {text}
             </div>
           ))}
-          <div className="mb-2">{gameState.currentScene}</div>
           {isProcessing && (
             <div className="animate-pulse">Processing your action...</div>
           )}

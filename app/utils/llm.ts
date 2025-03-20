@@ -85,6 +85,13 @@ Return your response in this JSON format:
   "removeItems": ["any items used or lost"]
 }`;
 
+const API_LIMIT_MESSAGE = {
+  response: "I apologize, but the game needs to rest for now. The API usage limit has been reached. Please try again later!",
+  location: "cave",
+  newItems: [],
+  removeItems: []
+};
+
 export async function processGameAction(
   action: string,
   context: GameContext
@@ -126,8 +133,14 @@ Player action: ${action}`;
         error: errorData
       });
       
-      // Always use fallback for any API error
-      console.log('Using fallback response system');
+      // Check specifically for billing/quota errors
+      if (response.status === 429 || 
+          (errorData?.error?.code === 'insufficient_quota') ||
+          (errorData?.error?.type === 'billing_limit_reached')) {
+        console.log('API limit reached');
+        return API_LIMIT_MESSAGE;
+      }
+      
       return getFallbackResponse(context, action);
     }
 
