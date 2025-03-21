@@ -34,6 +34,12 @@ export interface GamePlayer {
   created_at: string;
 }
 
+export interface Player {
+  id: string;
+  name: string;
+  isReady: boolean;
+}
+
 // Function to create a new game room
 export async function createGameRoom() {
   try {
@@ -124,7 +130,7 @@ export async function updatePlayerStatus(roomId: string, playerId: string, isRea
 
   if (roomError) throw roomError;
 
-  const updatedPlayers = room.game_state.players.map(player =>
+  const updatedPlayers = room.game_state.players.map((player: Player) =>
     player.id === playerId ? { ...player, isReady } : player
   );
 
