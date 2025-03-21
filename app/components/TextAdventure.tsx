@@ -40,8 +40,30 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
   const subscriptionRef = useRef<any>(null);
   const previousStateRef = useRef<string>('');
 
+  // Memoize the skip turn handler
+  const handleSkipTurn = useCallback(async () => {
+    if (!gameState) return;
+    
+    const currentPlayerName = gameState.players.find(p => p.id === gameState.currentPlayer)?.name || 'Unknown';
+    const newHistory = [...gameState.history, `> ${currentPlayerName}'s turn was skipped (time's up)`];
+    
+    const currentPlayerIndex = gameState.players.findIndex(p => p.id === gameState.currentPlayer);
+    const nextPlayerIndex = (currentPlayerIndex + 1) % gameState.players.length;
+    const nextPlayerId = gameState.players[nextPlayerIndex].id;
+
+    const updatedGameState = {
+      ...gameState,
+      history: newHistory,
+      currentPlayer: nextPlayerId
+    };
+
+    await updateGameState(roomId, updatedGameState);
+  }, [gameState, roomId]);
+
   // Memoize the state update callback
   const handleGameStateUpdate = useCallback((newGameState: GameState) => {
+    if (!newGameState) return;
+    
     const newStateString = JSON.stringify(newGameState);
     if (newStateString !== previousStateRef.current) {
       console.log('Received game state update:', newGameState);
@@ -55,18 +77,22 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
     let isMounted = true;
 
     const setupSubscription = async () => {
-      if (subscriptionRef.current) {
-        console.log('Cleaning up existing subscription');
-        subscriptionRef.current.unsubscribe();
-        subscriptionRef.current = null;
-      }
-
-      console.log('Setting up game state subscription for room:', roomId);
-      subscriptionRef.current = subscribeToGameRoom(roomId, (newGameState) => {
-        if (isMounted) {
-          handleGameStateUpdate(newGameState);
+      try {
+        if (subscriptionRef.current) {
+          console.log('Cleaning up existing subscription');
+          subscriptionRef.current.unsubscribe();
+          subscriptionRef.current = null;
         }
-      });
+
+        console.log('Setting up game state subscription for room:', roomId);
+        subscriptionRef.current = subscribeToGameRoom(roomId, (newGameState) => {
+          if (isMounted && newGameState) {
+            handleGameStateUpdate(newGameState);
+          }
+        });
+      } catch (error) {
+        console.error('Error setting up subscription:', error);
+      }
     };
 
     setupSubscription();
@@ -75,7 +101,11 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
       isMounted = false;
       if (subscriptionRef.current) {
         console.log('Cleaning up game state subscription');
-        subscriptionRef.current.unsubscribe();
+        try {
+          subscriptionRef.current.unsubscribe();
+        } catch (error) {
+          console.error('Error cleaning up subscription:', error);
+        }
         subscriptionRef.current = null;
       }
     };
@@ -96,7 +126,7 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isProcessing, isTimerPaused, gameState]);
+  }, [isProcessing, isTimerPaused, gameState, handleSkipTurn]);
 
   // Reset timer when player changes
   useEffect(() => {
@@ -104,6 +134,20 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
       setTimeRemaining(TURN_TIME_LIMIT);
     }
   }, [gameState?.currentPlayer]);
+
+  // Initialize game state if not set
+  useEffect(() => {
+    if (!gameState && players.length > 0) {
+      const initialGameState: GameState = {
+        currentLocation: 'cave',
+        inventory: players.reduce((acc, player) => ({ ...acc, [player.id]: [] }), {}),
+        history: ['Welcome to the cave! Your adventure begins...'],
+        currentPlayer: players[0].id,
+        players: players
+      };
+      handleGameStateUpdate(initialGameState);
+    }
+  }, [gameState, players, handleGameStateUpdate]);
 
   // Show loading state while waiting for initial game state
   if (!gameState) {
@@ -177,25 +221,6 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
     setApiTestResult('Testing API connection...');
     const result = await testApiConnection();
     setApiTestResult(result.message);
-  };
-
-  const handleSkipTurn = async () => {
-    if (!gameState) return;
-    
-    const currentPlayerName = gameState.players.find(p => p.id === gameState.currentPlayer)?.name || 'Unknown';
-    const newHistory = [...gameState.history, `> ${currentPlayerName}'s turn was skipped (time's up)`];
-    
-    const currentPlayerIndex = gameState.players.findIndex(p => p.id === gameState.currentPlayer);
-    const nextPlayerIndex = (currentPlayerIndex + 1) % gameState.players.length;
-    const nextPlayerId = gameState.players[nextPlayerIndex].id;
-
-    const updatedGameState = {
-      ...gameState,
-      history: newHistory,
-      currentPlayer: nextPlayerId
-    };
-
-    await updateGameState(roomId, updatedGameState);
   };
 
   const handleExtendTime = () => {
