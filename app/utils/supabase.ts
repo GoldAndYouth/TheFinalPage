@@ -1,7 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Missing Supabase environment variables');
+}
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
@@ -32,60 +36,82 @@ export interface GamePlayer {
 
 // Function to create a new game room
 export async function createGameRoom() {
-  const { data, error } = await supabase
-    .from('game_rooms')
-    .insert([
-      {
-        game_state: {
-          currentLocation: 'cave',
-          inventory: {},
-          history: ['Welcome to the mysterious cave. The adventure awaits...'],
-          currentPlayer: '',
-          players: []
-        },
-        is_active: true
-      }
-    ])
-    .select()
-    .single();
+  try {
+    const { data, error } = await supabase
+      .from('game_rooms')
+      .insert([
+        {
+          game_state: {
+            currentLocation: 'cave',
+            inventory: {},
+            history: ['Welcome to the mysterious cave. The adventure awaits...'],
+            currentPlayer: '',
+            players: []
+          },
+          is_active: true
+        }
+      ])
+      .select()
+      .single();
 
-  if (error) throw error;
-  return data;
+    if (error) {
+      console.error('Error creating room:', error);
+      throw error;
+    }
+
+    console.log('Room created:', data);
+    return data;
+  } catch (error) {
+    console.error('Error in createGameRoom:', error);
+    throw error;
+  }
 }
 
 // Function to join a game room
 export async function joinGameRoom(roomId: string, playerName: string) {
-  const playerId = Math.random().toString(36).substring(7);
-  
-  const { data: room, error: roomError } = await supabase
-    .from('game_rooms')
-    .select('game_state')
-    .eq('id', roomId)
-    .single();
+  try {
+    const { data: room, error: roomError } = await supabase
+      .from('game_rooms')
+      .select('game_state')
+      .eq('id', roomId)
+      .single();
 
-  if (roomError) throw roomError;
+    if (roomError) {
+      console.error('Error fetching room:', roomError);
+      throw roomError;
+    }
 
-  const updatedPlayers = [
-    ...room.game_state.players,
-    { id: playerId, name: playerName, isReady: false }
-  ];
+    const playerId = Math.random().toString(36).substring(7);
+    const updatedPlayers = [
+      ...room.game_state.players,
+      { id: playerId, name: playerName, isReady: false }
+    ];
 
-  const { error: updateError } = await supabase
-    .from('game_rooms')
-    .update({
-      game_state: {
-        ...room.game_state,
-        players: updatedPlayers,
-        inventory: {
-          ...room.game_state.inventory,
-          [playerId]: []
+    const { error: updateError } = await supabase
+      .from('game_rooms')
+      .update({
+        game_state: {
+          ...room.game_state,
+          players: updatedPlayers,
+          inventory: {
+            ...room.game_state.inventory,
+            [playerId]: []
+          }
         }
-      }
-    })
-    .eq('id', roomId);
+      })
+      .eq('id', roomId);
 
-  if (updateError) throw updateError;
-  return playerId;
+    if (updateError) {
+      console.error('Error updating room:', updateError);
+      throw updateError;
+    }
+
+    console.log('Joined room:', roomId, 'as player:', playerId);
+    return playerId;
+  } catch (error) {
+    console.error('Error in joinGameRoom:', error);
+    throw error;
+  }
 }
 
 // Function to update player ready status
