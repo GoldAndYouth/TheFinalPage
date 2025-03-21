@@ -147,7 +147,7 @@ export default function Lobby({ onStartGame }: LobbyProps) {
   return (
     <div className="min-h-screen bg-black text-green-400 p-4 font-mono">
       <div className="max-w-md mx-auto">
-        <h1 className="text-2xl mb-6 text-center">Game Room</h1>
+        <h1 className="text-2xl mb-6 text-center">The Last Page - Game Room</h1>
         
         <div className="mb-6 p-4 border border-green-400 rounded">
           <h2 className="text-xl mb-2">Room Code</h2>
