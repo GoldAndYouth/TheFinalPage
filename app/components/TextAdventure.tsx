@@ -37,20 +37,29 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
   const [isApiLimited, setIsApiLimited] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(TURN_TIME_LIMIT);
   const [isTimerPaused, setIsTimerPaused] = useState(false);
+  const [isSubscribed, setIsSubscribed] = useState(false);
 
   // Subscribe to game state changes
   useEffect(() => {
-    console.log('Setting up game state subscription for room:', roomId);
-    const subscription = subscribeToGameRoom(roomId, (newGameState) => {
-      console.log('Received game state update:', newGameState);
-      setGameState(newGameState);
-    });
+    let subscription: any;
+    
+    if (!isSubscribed) {
+      console.log('Setting up game state subscription for room:', roomId);
+      subscription = subscribeToGameRoom(roomId, (newGameState) => {
+        console.log('Received game state update:', newGameState);
+        setGameState(newGameState);
+      });
+      setIsSubscribed(true);
+    }
 
     return () => {
-      console.log('Cleaning up game state subscription');
-      subscription.unsubscribe();
+      if (subscription) {
+        console.log('Cleaning up game state subscription');
+        subscription.unsubscribe();
+        setIsSubscribed(false);
+      }
     };
-  }, [roomId]);
+  }, [roomId, isSubscribed]);
 
   // Show loading state while waiting for initial game state
   if (!gameState) {
@@ -63,12 +72,11 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
 
   // Timer effect
   useEffect(() => {
-    if (isProcessing || isTimerPaused) return;
+    if (!gameState || isProcessing || isTimerPaused) return;
 
     const timer = setInterval(() => {
       setTimeRemaining(prev => {
         if (prev <= 1) {
-          // Time's up - skip turn
           handleSkipTurn();
           return TURN_TIME_LIMIT;
         }
@@ -77,12 +85,14 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isProcessing, isTimerPaused]);
+  }, [isProcessing, isTimerPaused, gameState]);
 
   // Reset timer when player changes
   useEffect(() => {
-    setTimeRemaining(TURN_TIME_LIMIT);
-  }, [gameState.currentPlayer]);
+    if (gameState) {
+      setTimeRemaining(TURN_TIME_LIMIT);
+    }
+  }, [gameState?.currentPlayer]);
 
   const handleCommand = async (e: React.FormEvent) => {
     e.preventDefault();
