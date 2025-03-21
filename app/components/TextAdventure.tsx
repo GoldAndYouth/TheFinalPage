@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import AsciiArt from './AsciiArt';
 import { processGameAction, testApiConnection } from '../utils/llm';
 import { subscribeToGameRoom, updateGameState } from '../utils/supabase';
@@ -37,29 +37,34 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
   const [isApiLimited, setIsApiLimited] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(TURN_TIME_LIMIT);
   const [isTimerPaused, setIsTimerPaused] = useState(false);
-  const [isSubscribed, setIsSubscribed] = useState(false);
+  const subscriptionRef = useRef<any>(null);
 
   // Subscribe to game state changes
   useEffect(() => {
-    let subscription: any;
-    
-    if (!isSubscribed) {
+    // Only set up subscription if we don't have one
+    if (!subscriptionRef.current) {
       console.log('Setting up game state subscription for room:', roomId);
-      subscription = subscribeToGameRoom(roomId, (newGameState) => {
+      subscriptionRef.current = subscribeToGameRoom(roomId, (newGameState) => {
         console.log('Received game state update:', newGameState);
-        setGameState(newGameState);
+        // Only update if the state has actually changed
+        setGameState(prev => {
+          if (JSON.stringify(prev) !== JSON.stringify(newGameState)) {
+            return newGameState;
+          }
+          return prev;
+        });
       });
-      setIsSubscribed(true);
     }
 
+    // Cleanup function
     return () => {
-      if (subscription) {
+      if (subscriptionRef.current) {
         console.log('Cleaning up game state subscription');
-        subscription.unsubscribe();
-        setIsSubscribed(false);
+        subscriptionRef.current.unsubscribe();
+        subscriptionRef.current = null;
       }
     };
-  }, [roomId, isSubscribed]);
+  }, [roomId]); // Only depend on roomId
 
   // Show loading state while waiting for initial game state
   if (!gameState) {
@@ -85,11 +90,11 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isProcessing, isTimerPaused, gameState]);
+  }, [isProcessing, isTimerPaused]);
 
   // Reset timer when player changes
   useEffect(() => {
-    if (gameState) {
+    if (gameState?.currentPlayer) {
       setTimeRemaining(TURN_TIME_LIMIT);
     }
   }, [gameState?.currentPlayer]);
