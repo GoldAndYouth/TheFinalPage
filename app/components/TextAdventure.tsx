@@ -33,22 +33,33 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
   const [isProcessing, setIsProcessing] = useState(false);
   const [apiTestResult, setApiTestResult] = useState<string>('');
   const [commandCount, setCommandCount] = useState(0);
-  const [gameState, setGameState] = useState<GameState>(() => {
-    const playerNames = players.map(p => p.name).join(' and ');
-    return {
-      currentLocation: 'cave',
-      inventory: players.reduce((acc, player) => ({ ...acc, [player.id]: [] }), {}),
-      history: [
-        `${playerNames} stand at the entrance of a mysterious cave. The air is thick with anticipation.`,
-        'What would you like to do?'
-      ],
-      currentPlayer: players[0].id,
-      players: players
-    };
-  });
+  const [gameState, setGameState] = useState<GameState | null>(null);
   const [isApiLimited, setIsApiLimited] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(TURN_TIME_LIMIT);
   const [isTimerPaused, setIsTimerPaused] = useState(false);
+
+  // Subscribe to game state changes
+  useEffect(() => {
+    console.log('Setting up game state subscription for room:', roomId);
+    const subscription = subscribeToGameRoom(roomId, (newGameState) => {
+      console.log('Received game state update:', newGameState);
+      setGameState(newGameState);
+    });
+
+    return () => {
+      console.log('Cleaning up game state subscription');
+      subscription.unsubscribe();
+    };
+  }, [roomId]);
+
+  // Show loading state while waiting for initial game state
+  if (!gameState) {
+    return (
+      <div className="min-h-screen bg-black text-green-400 p-4 font-mono flex items-center justify-center">
+        <div className="animate-pulse">Loading game state...</div>
+      </div>
+    );
+  }
 
   // Timer effect
   useEffect(() => {
@@ -73,30 +84,13 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
     setTimeRemaining(TURN_TIME_LIMIT);
   }, [gameState.currentPlayer]);
 
-  useEffect(() => {
-    const subscription = subscribeToGameRoom(roomId, (gameState) => {
-      setGameState(prev => ({
-        ...prev,
-        currentLocation: gameState.currentLocation,
-        inventory: gameState.inventory,
-        history: gameState.history,
-        currentPlayer: gameState.currentPlayer,
-        players: gameState.players
-      }));
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [roomId]);
-
   const handleCommand = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isProcessing) return;
+    if (!input.trim() || isProcessing || !gameState) return;
 
     try {
       setIsProcessing(true);
-      const currentPlayerName = players.find(p => p.id === gameState.currentPlayer)?.name || 'Unknown';
+      const currentPlayerName = gameState.players.find(p => p.id === gameState.currentPlayer)?.name || 'Unknown';
       const newHistory = [...gameState.history, `> ${currentPlayerName}: ${input}`];
       
       const result = await processGameAction(input, {
@@ -119,9 +113,9 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
 
       setCommandCount(prev => prev + 1);
 
-      const currentPlayerIndex = players.findIndex(p => p.id === gameState.currentPlayer);
-      const nextPlayerIndex = (currentPlayerIndex + 1) % players.length;
-      const nextPlayerId = players[nextPlayerIndex].id;
+      const currentPlayerIndex = gameState.players.findIndex(p => p.id === gameState.currentPlayer);
+      const nextPlayerIndex = (currentPlayerIndex + 1) % gameState.players.length;
+      const nextPlayerId = gameState.players[nextPlayerIndex].id;
 
       const updatedGameState = {
         ...gameState,
@@ -129,18 +123,20 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
         history: [...newHistory, result.response],
         inventory: updatedInventory,
         currentPlayer: nextPlayerId,
-        players: players
+        players: gameState.players
       };
 
       await updateGameState(roomId, updatedGameState);
-      setGameState(updatedGameState);
     } catch (error) {
       console.error('Game processing error:', error);
       const errorMessage = "Something mysterious happened... (The magic seems to be failing)";
-      setGameState(prev => ({
-        ...prev,
-        history: [...gameState.history, `> ${input}`, errorMessage]
-      }));
+      if (gameState) {
+        const updatedGameState = {
+          ...gameState,
+          history: [...gameState.history, `> ${input}`, errorMessage]
+        };
+        await updateGameState(roomId, updatedGameState);
+      }
     } finally {
       setIsProcessing(false);
       setInput('');
@@ -153,18 +149,23 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
     setApiTestResult(result.message);
   };
 
-  const handleSkipTurn = () => {
-    const currentPlayerName = players.find(p => p.id === gameState.currentPlayer)?.name || 'Unknown';
+  const handleSkipTurn = async () => {
+    if (!gameState) return;
+    
+    const currentPlayerName = gameState.players.find(p => p.id === gameState.currentPlayer)?.name || 'Unknown';
     const newHistory = [...gameState.history, `> ${currentPlayerName}'s turn was skipped (time's up)`];
     
-    const currentPlayerIndex = players.findIndex(p => p.id === gameState.currentPlayer);
-    const nextPlayerIndex = (currentPlayerIndex + 1) % players.length;
+    const currentPlayerIndex = gameState.players.findIndex(p => p.id === gameState.currentPlayer);
+    const nextPlayerIndex = (currentPlayerIndex + 1) % gameState.players.length;
+    const nextPlayerId = gameState.players[nextPlayerIndex].id;
 
-    setGameState(prev => ({
-      ...prev,
+    const updatedGameState = {
+      ...gameState,
       history: newHistory,
-      currentPlayer: players[nextPlayerIndex].id
-    }));
+      currentPlayer: nextPlayerId
+    };
+
+    await updateGameState(roomId, updatedGameState);
   };
 
   const handleExtendTime = () => {
@@ -175,7 +176,7 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
     setIsTimerPaused(prev => !prev);
   };
 
-  const currentPlayerName = players.find(p => p.id === gameState.currentPlayer)?.name || 'Unknown';
+  const currentPlayerName = gameState.players.find(p => p.id === gameState.currentPlayer)?.name || 'Unknown';
 
   return (
     <div className="min-h-screen bg-black text-green-400 p-4 font-mono">
@@ -189,7 +190,7 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
         <div className="mb-4 p-2 border border-cyan-400 rounded bg-cyan-400/10">
           <h2 className="text-cyan-400 mb-2">Players</h2>
           <div className="flex gap-4 mb-2">
-            {players.map(player => (
+            {gameState.players.map(player => (
               <div 
                 key={player.id} 
                 className={`p-2 rounded ${player.id === gameState.currentPlayer ? 'bg-green-400/20 border border-green-400' : ''}`}
@@ -275,7 +276,7 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
         
         <div className="mt-4">
           <h3 className="text-lg mb-2">Inventories:</h3>
-          {players.map(player => (
+          {gameState.players.map(player => (
             <div key={player.id} className="text-sm mb-1">
               {player.name}: {gameState.inventory[player.id].join(', ') || 'Empty'}
             </div>
