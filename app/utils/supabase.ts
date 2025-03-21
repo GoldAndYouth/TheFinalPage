@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { RealtimeChannel } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -149,18 +150,38 @@ export async function updatePlayerStatus(roomId: string, playerId: string, isRea
 
 // Function to update game state
 export async function updateGameState(roomId: string, gameState: GameRoom['game_state']) {
+  console.log('Updating game state for room:', roomId, gameState);
   const { error } = await supabase
     .from('game_rooms')
     .update({ game_state: gameState })
     .eq('id', roomId);
 
-  if (error) throw error;
+  if (error) {
+    console.error('Error updating game state:', error);
+    throw error;
+  }
 }
 
 // Function to subscribe to game state changes
 export function subscribeToGameRoom(roomId: string, callback: (gameState: GameRoom['game_state']) => void) {
+  console.log('Setting up subscription for room:', roomId);
+  
+  // First, get the initial state
+  supabase
+    .from('game_rooms')
+    .select('game_state')
+    .eq('id', roomId)
+    .single()
+    .then(({ data, error }) => {
+      if (!error && data) {
+        console.log('Initial game state:', data.game_state);
+        callback(data.game_state);
+      }
+    });
+
+  // Then set up real-time subscription
   return supabase
-    .channel(`room:${roomId}`)
+    .channel('game_updates')
     .on(
       'postgres_changes',
       {
@@ -170,7 +191,11 @@ export function subscribeToGameRoom(roomId: string, callback: (gameState: GameRo
         filter: `id=eq.${roomId}`
       },
       (payload) => {
-        callback(payload.new.game_state);
+        console.log('Received real-time update:', payload);
+        const newState = (payload.new as GameRoom).game_state;
+        if (newState) {
+          callback(newState);
+        }
       }
     )
     .subscribe();
