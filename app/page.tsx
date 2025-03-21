@@ -13,9 +13,13 @@ interface Player {
 export default function Home() {
   const [gameStarted, setGameStarted] = useState(false);
   const [players, setPlayers] = useState<Player[]>([]);
+  const [roomId, setRoomId] = useState<string>('');
+  const [playerId, setPlayerId] = useState<string>('');
 
-  const handleStartGame = (players: Player[]) => {
+  const handleStartGame = (players: Player[], roomId: string, playerId: string) => {
     setPlayers(players);
+    setRoomId(roomId);
+    setPlayerId(playerId);
     setGameStarted(true);
   };
 
@@ -23,5 +27,5 @@ export default function Home() {
     return <Lobby onStartGame={handleStartGame} />;
   }
 
-  return <TextAdventure players={players} />;
+  return <TextAdventure players={players} roomId={roomId} playerId={playerId} />;
 }

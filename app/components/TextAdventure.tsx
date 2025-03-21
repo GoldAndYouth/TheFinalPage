@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import AsciiArt from './AsciiArt';
 import { processGameAction, testApiConnection } from '../utils/llm';
+import { subscribeToGameRoom, updateGameState } from '../utils/supabase';
+import type { GameRoom } from '../utils/supabase';
 
 interface Player {
   id: string;
@@ -15,15 +17,18 @@ interface GameState {
   inventory: { [playerId: string]: string[] };
   history: string[];
   currentPlayer: string;
+  players: Player[];
 }
 
 interface TextAdventureProps {
   players: Player[];
+  roomId: string;
+  playerId: string;
 }
 
 const TURN_TIME_LIMIT = 60; // 60 seconds per turn
 
-export default function TextAdventure({ players }: TextAdventureProps) {
+export default function TextAdventure({ players, roomId, playerId }: TextAdventureProps) {
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [apiTestResult, setApiTestResult] = useState<string>('');
@@ -32,7 +37,8 @@ export default function TextAdventure({ players }: TextAdventureProps) {
     currentLocation: 'cave',
     inventory: players.reduce((acc, player) => ({ ...acc, [player.id]: [] }), {}),
     history: ['You and your companions stand at the entrance of a mysterious cave. The air is thick with anticipation. What would you like to do?'],
-    currentPlayer: players[0].id
+    currentPlayer: players[0].id,
+    players: players
   }));
   const [isApiLimited, setIsApiLimited] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(TURN_TIME_LIMIT);
@@ -61,6 +67,23 @@ export default function TextAdventure({ players }: TextAdventureProps) {
     setTimeRemaining(TURN_TIME_LIMIT);
   }, [gameState.currentPlayer]);
 
+  useEffect(() => {
+    const subscription = subscribeToGameRoom(roomId, (gameState) => {
+      setGameState(prev => ({
+        ...prev,
+        currentLocation: gameState.currentLocation,
+        inventory: gameState.inventory,
+        history: gameState.history,
+        currentPlayer: gameState.currentPlayer,
+        players: gameState.players
+      }));
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [roomId]);
+
   const handleCommand = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isProcessing) return;
@@ -80,7 +103,6 @@ export default function TextAdventure({ players }: TextAdventureProps) {
         setIsApiLimited(true);
       }
 
-      // Update inventory for current player
       const updatedInventory = {
         ...gameState.inventory,
         [gameState.currentPlayer]: [
@@ -91,17 +113,21 @@ export default function TextAdventure({ players }: TextAdventureProps) {
 
       setCommandCount(prev => prev + 1);
 
-      // Move to next player
       const currentPlayerIndex = players.findIndex(p => p.id === gameState.currentPlayer);
       const nextPlayerIndex = (currentPlayerIndex + 1) % players.length;
+      const nextPlayerId = players[nextPlayerIndex].id;
 
-      setGameState(prev => ({
-        ...prev,
-        currentLocation: result.location || prev.currentLocation,
+      const updatedGameState = {
+        ...gameState,
+        currentLocation: result.location || gameState.currentLocation,
         history: [...newHistory, result.response],
         inventory: updatedInventory,
-        currentPlayer: players[nextPlayerIndex].id
-      }));
+        currentPlayer: nextPlayerId,
+        players: players
+      };
+
+      await updateGameState(roomId, updatedGameState);
+      setGameState(updatedGameState);
     } catch (error) {
       console.error('Game processing error:', error);
       const errorMessage = "Something mysterious happened... (The magic seems to be failing)";
