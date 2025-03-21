@@ -122,23 +122,23 @@ export default function Lobby({ onStartGame }: LobbyProps) {
                   value={roomId}
                   onChange={(e) => setRoomId(e.target.value)}
                   placeholder="Enter room code"
-                  className="w-full bg-black/50 border border-green-400 p-2 text-green-400 rounded focus:outline-none focus:ring-1 focus:ring-green-400"
+                  className="w-full mb-2 bg-black/50 border border-green-400 p-2 text-green-400 rounded focus:outline-none focus:ring-1 focus:ring-green-400"
                 />
                 <button
                   type="submit"
-                  className="px-4 py-3 bg-cyan-400 text-black rounded hover:bg-cyan-500 transition-colors"
+                  className="px-4 py-3 bg-green-400 text-black rounded hover:bg-green-500 transition-colors"
                 >
                   Join Room
                 </button>
               </form>
             </div>
-          </div>
 
-          {error && (
-            <div className="p-3 mb-4 border border-red-400 rounded bg-red-400/10 text-red-400">
-              {error}
-            </div>
-          )}
+            {error && (
+              <div className="mt-4 p-2 border border-red-400 rounded bg-red-400/10 text-red-400">
+                {error}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -146,30 +146,40 @@ export default function Lobby({ onStartGame }: LobbyProps) {
 
   return (
     <div className="min-h-screen bg-black text-green-400 p-4 font-mono">
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-md mx-auto">
         <h1 className="text-2xl mb-6 text-center">Game Room</h1>
         
-        <div className="mb-4 p-3 border border-cyan-400 rounded bg-cyan-400/10">
-          <p className="text-center">Room Code: <span className="font-bold">{roomId}</span></p>
-          <p className="text-sm text-center mt-1">Share this code with other players to join</p>
+        <div className="mb-6 p-4 border border-green-400 rounded">
+          <h2 className="text-xl mb-2">Room Code</h2>
+          <p className="font-bold">{roomId}</p>
+          <p className="text-sm mt-2">Share this code with your friends to join!</p>
         </div>
 
-        <div className="mb-8">
-          <h2 className="text-xl mb-4">Players ({players.length}/4)</h2>
+        <div className="mb-6">
+          <h2 className="text-xl mb-2">Players</h2>
           <div className="space-y-2">
             {players.map(player => (
-              <div key={player.id} className="flex items-center justify-between bg-black/50 p-3 rounded border border-green-400">
-                <span className={player.isReady ? 'text-green-400' : 'text-yellow-400'}>
-                  {player.name} {player.isReady ? '(Ready)' : '(Not Ready)'}
-                  {player.id === playerId && ' (You)'}
-                </span>
+              <div 
+                key={player.id}
+                className="p-2 border border-green-400 rounded flex justify-between items-center"
+              >
+                <span>{player.name}</span>
                 {player.id === playerId && (
                   <button
                     onClick={toggleReady}
-                    className="px-3 py-1 bg-green-400 text-black rounded hover:bg-green-500 transition-colors"
+                    className={`px-3 py-1 rounded ${
+                      player.isReady
+                        ? 'bg-yellow-400 hover:bg-yellow-500'
+                        : 'bg-green-400 hover:bg-green-500'
+                    } text-black transition-colors`}
                   >
                     {player.isReady ? 'Not Ready' : 'Ready'}
                   </button>
+                )}
+                {player.id !== playerId && (
+                  <span className={player.isReady ? 'text-yellow-400' : 'text-gray-400'}>
+                    {player.isReady ? 'Ready!' : 'Not Ready'}
+                  </span>
                 )}
               </div>
             ))}
@@ -177,19 +187,10 @@ export default function Lobby({ onStartGame }: LobbyProps) {
         </div>
 
         {error && (
-          <div className="p-3 mb-4 border border-red-400 rounded bg-red-400/10 text-red-400">
+          <div className="mt-4 p-2 border border-red-400 rounded bg-red-400/10 text-red-400">
             {error}
           </div>
         )}
-
-        <div className="mt-4 text-sm text-center text-green-400/70">
-          {players.length > 0 && !players.every(p => p.isReady) && (
-            <p>All players must be ready to start the game</p>
-          )}
-          {players.length === 0 && (
-            <p>Waiting for other players to join...</p>
-          )}
-        </div>
       </div>
     </div>
   );
