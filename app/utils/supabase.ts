@@ -123,6 +123,7 @@ export async function joinGameRoom(roomId: string, playerName: string) {
 
 // Function to update player ready status
 export async function updatePlayerStatus(roomId: string, playerId: string, isReady: boolean) {
+  console.log('Updating player status:', { roomId, playerId, isReady });
   const { data: room, error: roomError } = await supabase
     .from('game_rooms')
     .select('game_state')
@@ -135,17 +136,29 @@ export async function updatePlayerStatus(roomId: string, playerId: string, isRea
     player.id === playerId ? { ...player, isReady } : player
   );
 
+  const updatedGameState = {
+    ...room.game_state,
+    players: updatedPlayers
+  };
+
   const { error: updateError } = await supabase
     .from('game_rooms')
     .update({
-      game_state: {
-        ...room.game_state,
-        players: updatedPlayers
-      }
+      game_state: updatedGameState
     })
     .eq('id', roomId);
 
   if (updateError) throw updateError;
+
+  // Broadcast the update to all subscribers
+  await supabase.channel(`room_${roomId}`).send({
+    type: 'broadcast',
+    event: 'game_update',
+    payload: updatedGameState,
+  });
+
+  console.log('Successfully updated player status');
+  return updatedGameState;
 }
 
 // Function to update game state
@@ -162,6 +175,13 @@ export async function updateGameState(roomId: string, gameState: GameRoom['game_
     console.error('Error updating game state:', error);
     throw error;
   }
+
+  // Broadcast the update to all subscribers
+  await supabase.channel(`room_${roomId}`).send({
+    type: 'broadcast',
+    event: 'game_update',
+    payload: gameState,
+  });
 
   console.log('Successfully updated game state:', data);
   return data;
@@ -189,19 +209,13 @@ export function subscribeToGameRoom(roomId: string, callback: (gameState: GameRo
   
   return channel
     .on(
-      'postgres_changes',
-      {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'game_rooms',
-        filter: `id=eq.${roomId}`
-      },
+      'broadcast',
+      { event: 'game_update' },
       (payload) => {
-        console.log('Received real-time update for room:', roomId, payload);
-        const newState = (payload.new as GameRoom).game_state;
-        if (newState) {
-          console.log('Updating game state with:', newState);
-          callback(newState);
+        console.log('Received broadcast update for room:', roomId, payload);
+        if (payload.payload) {
+          console.log('Updating game state with:', payload.payload);
+          callback(payload.payload);
         }
       }
     )
