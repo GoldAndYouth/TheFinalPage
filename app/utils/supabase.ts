@@ -89,22 +89,26 @@ export async function joinGameRoom(roomId: string, playerName: string) {
     }
 
     const playerId = Math.random().toString(36).substring(7);
-    const updatedPlayers = [
-      ...room.game_state.players,
-      { id: playerId, name: playerName, isReady: false }
-    ];
+    const updatedGameState = {
+      ...room.game_state,
+      players: [
+        ...room.game_state.players,
+        { id: playerId, name: playerName, isReady: false }
+      ],
+      inventory: {
+        ...room.game_state.inventory,
+        [playerId]: []
+      },
+      history: [
+        ...room.game_state.history,
+        `${playerName} has entered the cave.`
+      ]
+    };
 
     const { error: updateError } = await supabase
       .from('game_rooms')
       .update({
-        game_state: {
-          ...room.game_state,
-          players: updatedPlayers,
-          inventory: {
-            ...room.game_state.inventory,
-            [playerId]: []
-          }
-        }
+        game_state: updatedGameState
       })
       .eq('id', roomId);
 
@@ -112,6 +116,13 @@ export async function joinGameRoom(roomId: string, playerName: string) {
       console.error('Error updating room:', updateError);
       throw updateError;
     }
+
+    // Broadcast the update to all subscribers
+    await supabase.channel(`room_${roomId}`).send({
+      type: 'broadcast',
+      event: 'game_update',
+      payload: updatedGameState,
+    });
 
     console.log('Joined room:', roomId, 'as player:', playerId);
     return playerId;

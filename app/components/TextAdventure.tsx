@@ -33,13 +33,19 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
   const [isProcessing, setIsProcessing] = useState(false);
   const [apiTestResult, setApiTestResult] = useState<string>('');
   const [commandCount, setCommandCount] = useState(0);
-  const [gameState, setGameState] = useState<GameState>(() => ({
-    currentLocation: 'cave',
-    inventory: players.reduce((acc, player) => ({ ...acc, [player.id]: [] }), {}),
-    history: ['You and your companions stand at the entrance of a mysterious cave. The air is thick with anticipation. What would you like to do?'],
-    currentPlayer: players[0].id,
-    players: players
-  }));
+  const [gameState, setGameState] = useState<GameState>(() => {
+    const playerNames = players.map(p => p.name).join(' and ');
+    return {
+      currentLocation: 'cave',
+      inventory: players.reduce((acc, player) => ({ ...acc, [player.id]: [] }), {}),
+      history: [
+        `${playerNames} stand at the entrance of a mysterious cave. The air is thick with anticipation.`,
+        'What would you like to do?'
+      ],
+      currentPlayer: players[0].id,
+      players: players
+    };
+  });
   const [isApiLimited, setIsApiLimited] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(TURN_TIME_LIMIT);
   const [isTimerPaused, setIsTimerPaused] = useState(false);
