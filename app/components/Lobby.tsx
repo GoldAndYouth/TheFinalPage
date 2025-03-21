@@ -93,7 +93,7 @@ export default function Lobby({ onStartGame }: LobbyProps) {
     return (
       <div className="min-h-screen bg-black text-green-400 p-4 font-mono">
         <div className="max-w-md mx-auto">
-          <h1 className="text-2xl mb-6 text-center">Text Adventure Multiplayer</h1>
+          <h1 className="text-2xl mb-6 text-center">The Last Page</h1>
           
           <div className="mb-8">
             <input
