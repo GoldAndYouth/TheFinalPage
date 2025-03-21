@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import AsciiArt from './AsciiArt';
 import { processGameAction, testApiConnection } from '../utils/llm';
 import { subscribeToGameRoom, updateGameState } from '../utils/supabase';
@@ -38,42 +38,48 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
   const [timeRemaining, setTimeRemaining] = useState(TURN_TIME_LIMIT);
   const [isTimerPaused, setIsTimerPaused] = useState(false);
   const subscriptionRef = useRef<any>(null);
+  const previousStateRef = useRef<string>('');
+
+  // Memoize the state update callback
+  const handleGameStateUpdate = useCallback((newGameState: GameState) => {
+    const newStateString = JSON.stringify(newGameState);
+    if (newStateString !== previousStateRef.current) {
+      console.log('Received game state update:', newGameState);
+      previousStateRef.current = newStateString;
+      setGameState(newGameState);
+    }
+  }, []);
 
   // Subscribe to game state changes
   useEffect(() => {
-    // Only set up subscription if we don't have one
-    if (!subscriptionRef.current) {
+    let isMounted = true;
+
+    const setupSubscription = async () => {
+      if (subscriptionRef.current) {
+        console.log('Cleaning up existing subscription');
+        subscriptionRef.current.unsubscribe();
+        subscriptionRef.current = null;
+      }
+
       console.log('Setting up game state subscription for room:', roomId);
       subscriptionRef.current = subscribeToGameRoom(roomId, (newGameState) => {
-        console.log('Received game state update:', newGameState);
-        // Only update if the state has actually changed
-        setGameState(prev => {
-          if (JSON.stringify(prev) !== JSON.stringify(newGameState)) {
-            return newGameState;
-          }
-          return prev;
-        });
+        if (isMounted) {
+          handleGameStateUpdate(newGameState);
+        }
       });
-    }
+    };
 
-    // Cleanup function
+    setupSubscription();
+
     return () => {
+      isMounted = false;
       if (subscriptionRef.current) {
         console.log('Cleaning up game state subscription');
         subscriptionRef.current.unsubscribe();
         subscriptionRef.current = null;
       }
     };
-  }, [roomId]); // Only depend on roomId
-
-  // Show loading state while waiting for initial game state
-  if (!gameState) {
-    return (
-      <div className="min-h-screen bg-black text-green-400 p-4 font-mono flex items-center justify-center">
-        <div className="animate-pulse">Loading game state...</div>
-      </div>
-    );
-  }
+  }, [roomId, handleGameStateUpdate]);
 
   // Timer effect
   useEffect(() => {
@@ -90,7 +96,7 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isProcessing, isTimerPaused]);
+  }, [isProcessing, isTimerPaused, gameState]);
 
   // Reset timer when player changes
   useEffect(() => {
@@ -98,6 +104,15 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
       setTimeRemaining(TURN_TIME_LIMIT);
     }
   }, [gameState?.currentPlayer]);
+
+  // Show loading state while waiting for initial game state
+  if (!gameState) {
+    return (
+      <div className="min-h-screen bg-black text-green-400 p-4 font-mono flex items-center justify-center">
+        <div className="animate-pulse">Loading game state...</div>
+      </div>
+    );
+  }
 
   const handleCommand = async (e: React.FormEvent) => {
     e.preventDefault();
