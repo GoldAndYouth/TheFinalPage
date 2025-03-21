@@ -151,15 +151,20 @@ export async function updatePlayerStatus(roomId: string, playerId: string, isRea
 // Function to update game state
 export async function updateGameState(roomId: string, gameState: GameRoom['game_state']) {
   console.log('Updating game state for room:', roomId, gameState);
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('game_rooms')
     .update({ game_state: gameState })
-    .eq('id', roomId);
+    .eq('id', roomId)
+    .select()
+    .single();
 
   if (error) {
     console.error('Error updating game state:', error);
     throw error;
   }
+
+  console.log('Successfully updated game state:', data);
+  return data;
 }
 
 // Function to subscribe to game state changes
@@ -179,9 +184,10 @@ export function subscribeToGameRoom(roomId: string, callback: (gameState: GameRo
       }
     });
 
-  // Then set up real-time subscription
-  return supabase
-    .channel('game_updates')
+  // Then set up real-time subscription with unique channel name per room
+  const channel = supabase.channel(`room_${roomId}`);
+  
+  return channel
     .on(
       'postgres_changes',
       {
@@ -191,12 +197,15 @@ export function subscribeToGameRoom(roomId: string, callback: (gameState: GameRo
         filter: `id=eq.${roomId}`
       },
       (payload) => {
-        console.log('Received real-time update:', payload);
+        console.log('Received real-time update for room:', roomId, payload);
         const newState = (payload.new as GameRoom).game_state;
         if (newState) {
+          console.log('Updating game state with:', newState);
           callback(newState);
         }
       }
     )
-    .subscribe();
+    .subscribe((status) => {
+      console.log('Subscription status for room:', roomId, status);
+    });
 } 
