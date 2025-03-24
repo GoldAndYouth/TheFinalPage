@@ -23,6 +23,7 @@ export interface GameRoom {
       name: string;
       isReady: boolean;
     }[];
+    gameStarted: boolean;
   };
   is_active: boolean;
 }
@@ -53,7 +54,8 @@ export async function createGameRoom() {
             inventory: {},
             history: ['Welcome to the mysterious cave. The adventure awaits...'],
             currentPlayer: '',
-            players: []
+            players: [],
+            gameStarted: false
           },
           is_active: true
         }
@@ -102,7 +104,8 @@ export async function joinGameRoom(roomId: string, playerName: string) {
       history: [
         ...room.game_state.history,
         `${playerName} has entered the cave.`
-      ]
+      ],
+      gameStarted: false
     };
 
     const { error: updateError } = await supabase
@@ -149,7 +152,8 @@ export async function updatePlayerStatus(roomId: string, playerId: string, isRea
 
   const updatedGameState = {
     ...room.game_state,
-    players: updatedPlayers
+    players: updatedPlayers,
+    gameStarted: false
   };
 
   const { error: updateError } = await supabase
