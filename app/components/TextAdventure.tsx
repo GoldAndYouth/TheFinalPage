@@ -186,17 +186,20 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
 
       // Add command to history immediately
       const newHistory = [...gameState.history, `> ${currentPlayer.name}: ${command}`];
-      const updatedGameState = {
+      const updatedGameState: GameState = {
         ...gameState,
         history: newHistory,
         gameStarted: gameState.gameStarted
       };
       setGameState(updatedGameState);
 
+      // Ensure inventory exists for current player
+      const currentPlayerInventory = gameState.inventory[gameState.currentPlayer] || [];
+
       // Convert multiplayer state to single-player context for LLM
       const gameContext: GameContext = {
         currentLocation: gameState.currentLocation,
-        inventory: gameState.inventory[gameState.currentPlayer] || [],
+        inventory: currentPlayerInventory,
         history: gameState.history.slice(-3)
       };
 
@@ -212,7 +215,7 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
       const updatedInventory = {
         ...gameState.inventory,
         [gameState.currentPlayer]: [
-          ...(gameState.inventory[gameState.currentPlayer] || []).filter(item => !result.removeItems.includes(item)),
+          ...currentPlayerInventory.filter(item => !result.removeItems.includes(item)),
           ...result.newItems
         ]
       };
