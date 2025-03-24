@@ -2,7 +2,7 @@
 
 interface GameContext {
   currentLocation: string;
-  inventory: string[];
+  inventory: string[] | { [playerId: string]: string[] };
   history: string[];
 }
 
@@ -102,9 +102,14 @@ export async function processGameAction(
   removeItems: string[];
 }> {
   try {
+    // Convert inventory to string array if it's an object
+    const inventoryArray = Array.isArray(context.inventory) 
+      ? context.inventory 
+      : Object.values(context.inventory).flat();
+
     const prompt = `
 Current location: ${context.currentLocation}
-Inventory: ${context.inventory.join(', ') || 'empty'}
+Inventory: ${inventoryArray.join(', ') || 'empty'}
 Recent history: ${context.history.slice(-3).join('\n')}
 
 Player action: ${action}`;
