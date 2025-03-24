@@ -33,8 +33,6 @@ interface TextAdventureProps {
   playerId: string;
 }
 
-const TURN_TIME_LIMIT = 60; // 60 seconds per turn
-
 export default function TextAdventure({ players, roomId, playerId }: TextAdventureProps) {
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -42,30 +40,8 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
   const [commandCount, setCommandCount] = useState(0);
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [isApiLimited, setIsApiLimited] = useState(false);
-  const [timeRemaining, setTimeRemaining] = useState(TURN_TIME_LIMIT);
-  const [isTimerPaused, setIsTimerPaused] = useState(false);
   const subscriptionRef = useRef<any>(null);
   const previousStateRef = useRef<string>('');
-
-  // Memoize the skip turn handler
-  const handleSkipTurn = useCallback(async () => {
-    if (!gameState) return;
-    
-    const currentPlayerName = gameState.players.find(p => p.id === gameState.currentPlayer)?.name || 'Unknown';
-    const newHistory = [...gameState.history, `> ${currentPlayerName}'s turn was skipped (time's up)`];
-    
-    const currentPlayerIndex = gameState.players.findIndex(p => p.id === gameState.currentPlayer);
-    const nextPlayerIndex = (currentPlayerIndex + 1) % gameState.players.length;
-    const nextPlayerId = gameState.players[nextPlayerIndex].id;
-
-    const updatedGameState = {
-      ...gameState,
-      history: newHistory,
-      currentPlayer: nextPlayerId
-    };
-
-    await updateGameState(roomId, updatedGameState);
-  }, [gameState, roomId]);
 
   // Memoize the state update callback
   const handleGameStateUpdate = useCallback((newGameState: GameState) => {
@@ -118,30 +94,6 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
     };
   }, [roomId, handleGameStateUpdate]);
 
-  // Timer effect
-  useEffect(() => {
-    if (!gameState || isProcessing || isTimerPaused) return;
-
-    const timer = setInterval(() => {
-      setTimeRemaining(prev => {
-        if (prev <= 1) {
-          handleSkipTurn();
-          return TURN_TIME_LIMIT;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [isProcessing, isTimerPaused, gameState, handleSkipTurn]);
-
-  // Reset timer when player changes
-  useEffect(() => {
-    if (gameState?.currentPlayer) {
-      setTimeRemaining(TURN_TIME_LIMIT);
-    }
-  }, [gameState?.currentPlayer]);
-
   // Initialize game state if not set
   useEffect(() => {
     if (!gameState && players.length > 0) {
@@ -177,7 +129,6 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
     }
 
     setIsProcessing(true);
-    setIsTimerPaused(true);
 
     try {
       const command = input.trim();
@@ -248,7 +199,6 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
       await updateGameState(roomId, errorGameState);
     } finally {
       setIsProcessing(false);
-      setIsTimerPaused(false);
     }
   };
 
@@ -256,14 +206,6 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
     setApiTestResult('Testing API connection...');
     const result = await testApiConnection();
     setApiTestResult(result.message);
-  };
-
-  const handleExtendTime = () => {
-    setTimeRemaining(prev => Math.min(prev + 30, TURN_TIME_LIMIT));
-  };
-
-  const toggleTimer = () => {
-    setIsTimerPaused(prev => !prev);
   };
 
   const currentPlayerName = gameState.players.find(p => p.id === gameState.currentPlayer)?.name || 'Unknown';
@@ -289,31 +231,6 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
                 {player.id === gameState.currentPlayer && ' (Current Turn)'}
               </div>
             ))}
-          </div>
-          <div className="flex items-center justify-between mt-2 text-sm">
-            <div className="flex items-center gap-2">
-              <span className={timeRemaining <= 10 ? 'text-red-400' : 'text-green-400'}>
-                Time Remaining: {timeRemaining}s
-              </span>
-              <button
-                onClick={toggleTimer}
-                className="px-2 py-1 text-xs bg-yellow-400 text-black rounded hover:bg-yellow-500 transition-colors"
-              >
-                {isTimerPaused ? 'Resume Timer' : 'Pause Timer'}
-              </button>
-              <button
-                onClick={handleExtendTime}
-                className="px-2 py-1 text-xs bg-blue-400 text-black rounded hover:bg-blue-500 transition-colors"
-              >
-                +30s
-              </button>
-            </div>
-            <button
-              onClick={handleSkipTurn}
-              className="px-2 py-1 text-xs bg-red-400 text-black rounded hover:bg-red-500 transition-colors"
-            >
-              Skip Turn
-            </button>
           </div>
         </div>
 
