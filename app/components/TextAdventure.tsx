@@ -18,6 +18,13 @@ interface GameState {
   history: string[];
   currentPlayer: string;
   players: Player[];
+  gameStarted: boolean;
+}
+
+interface GameContext {
+  currentLocation: string;
+  inventory: string[];
+  history: string[];
 }
 
 interface TextAdventureProps {
@@ -143,7 +150,8 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
         inventory: players.reduce((acc, player) => ({ ...acc, [player.id]: [] }), {}),
         history: ['Welcome to the cave! Your adventure begins...'],
         currentPlayer: players[0].id,
-        players: players
+        players: players,
+        gameStarted: false
       };
       handleGameStateUpdate(initialGameState);
     }
@@ -162,58 +170,82 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
     e.preventDefault();
     if (!input.trim() || isProcessing || !gameState) return;
 
-    try {
-      setIsProcessing(true);
-      const currentPlayerName = gameState.players.find(p => p.id === gameState.currentPlayer)?.name || 'Unknown';
-      const newHistory = [...gameState.history, `> ${currentPlayerName}: ${input}`];
-      
-      const result = await processGameAction(input, {
-        currentLocation: gameState.currentLocation,
-        inventory: gameState.inventory[gameState.currentPlayer],
-        history: gameState.history.slice(-3)
-      });
+    const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
+    if (!currentPlayer) {
+      console.error('Current player not found in game state');
+      return;
+    }
 
+    setIsProcessing(true);
+    setIsTimerPaused(true);
+
+    try {
+      const command = input.trim();
+      setInput('');
+      setCommandCount(prev => prev + 1);
+
+      // Add command to history immediately
+      const newHistory = [...gameState.history, `> ${currentPlayer.name}: ${command}`];
+      const updatedGameState = {
+        ...gameState,
+        history: newHistory,
+        gameStarted: gameState.gameStarted
+      };
+      setGameState(updatedGameState);
+
+      // Convert multiplayer state to single-player context for LLM
+      const gameContext: GameContext = {
+        currentLocation: gameState.currentLocation,
+        inventory: gameState.inventory[gameState.currentPlayer] || [],
+        history: gameState.history.slice(-3)
+      };
+
+      // Process the command
+      const result = await processGameAction(command, gameContext);
+      
       if (result.response.includes("API usage limit has been reached")) {
         setIsApiLimited(true);
+        throw new Error("API usage limit has been reached");
       }
 
+      // Update inventory for current player
       const updatedInventory = {
         ...gameState.inventory,
         [gameState.currentPlayer]: [
-          ...gameState.inventory[gameState.currentPlayer].filter(item => !result.removeItems.includes(item)),
+          ...(gameState.inventory[gameState.currentPlayer] || []).filter(item => !result.removeItems.includes(item)),
           ...result.newItems
         ]
       };
 
-      setCommandCount(prev => prev + 1);
-
+      // Determine next player
       const currentPlayerIndex = gameState.players.findIndex(p => p.id === gameState.currentPlayer);
       const nextPlayerIndex = (currentPlayerIndex + 1) % gameState.players.length;
       const nextPlayerId = gameState.players[nextPlayerIndex].id;
 
-      const updatedGameState = {
-        ...gameState,
-        currentLocation: result.location || gameState.currentLocation,
+      // Update game state with the result
+      const finalGameState = {
+        ...updatedGameState,
         history: [...newHistory, result.response],
         inventory: updatedInventory,
+        currentLocation: result.location || updatedGameState.currentLocation,
         currentPlayer: nextPlayerId,
-        players: gameState.players
+        gameStarted: updatedGameState.gameStarted
       };
 
-      await updateGameState(roomId, updatedGameState);
+      await updateGameState(roomId, finalGameState);
     } catch (error) {
       console.error('Game processing error:', error);
-      const errorMessage = "Something mysterious happened... (The magic seems to be failing)";
-      if (gameState) {
-        const updatedGameState = {
-          ...gameState,
-          history: [...gameState.history, `> ${input}`, errorMessage]
-        };
-        await updateGameState(roomId, updatedGameState);
-      }
+      const errorMessage = error instanceof Error ? error.message : 'Something mysterious happened... (The magic seems to be failing)';
+      const newHistory = [...gameState.history, `> Error: ${errorMessage}`];
+      const errorGameState = {
+        ...gameState,
+        history: newHistory,
+        gameStarted: gameState.gameStarted
+      };
+      await updateGameState(roomId, errorGameState);
     } finally {
       setIsProcessing(false);
-      setInput('');
+      setIsTimerPaused(false);
     }
   };
 
