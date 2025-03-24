@@ -47,11 +47,20 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
   const handleGameStateUpdate = useCallback((newGameState: GameState) => {
     if (!newGameState) return;
     
+    console.log('Received game state update:', {
+      currentPlayer: newGameState.currentPlayer,
+      players: newGameState.players,
+      gameStarted: newGameState.gameStarted,
+      history: newGameState.history.slice(-2) // Show last 2 history entries
+    });
+    
     const newStateString = JSON.stringify(newGameState);
     if (newStateString !== previousStateRef.current) {
-      console.log('Received game state update:', newGameState);
+      console.log('Game state has changed, updating...');
       previousStateRef.current = newStateString;
       setGameState(newGameState);
+    } else {
+      console.log('Game state unchanged, skipping update');
     }
   }, []);
 
@@ -122,11 +131,24 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
     e.preventDefault();
     if (!input.trim() || isProcessing || !gameState) return;
 
+    console.log('Current game state:', {
+      currentPlayer: gameState.currentPlayer,
+      players: gameState.players,
+      inventory: gameState.inventory,
+      history: gameState.history
+    });
+
     const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
     if (!currentPlayer) {
-      console.error('Current player not found in game state');
+      console.error('Current player not found in game state. Game state:', gameState);
       return;
     }
+
+    console.log('Processing command for player:', {
+      playerId: currentPlayer.id,
+      playerName: currentPlayer.name,
+      command: input.trim()
+    });
 
     setIsProcessing(true);
 
@@ -144,8 +166,12 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
       };
       setGameState(updatedGameState);
 
-      // Ensure inventory exists for current player
+      // Ensure inventory exists for current player and is properly initialized
       const currentPlayerInventory = gameState.inventory[gameState.currentPlayer] || [];
+      console.log('Current player inventory:', {
+        playerId: gameState.currentPlayer,
+        inventory: currentPlayerInventory
+      });
 
       // Convert multiplayer state to single-player context for LLM
       const gameContext: GameContext = {
@@ -162,12 +188,12 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
         throw new Error("API usage limit has been reached");
       }
 
-      // Update inventory for current player
+      // Update inventory for current player with safety checks
       const updatedInventory = {
         ...gameState.inventory,
         [gameState.currentPlayer]: [
-          ...currentPlayerInventory.filter(item => !result.removeItems.includes(item)),
-          ...result.newItems
+          ...(currentPlayerInventory || []).filter(item => !(result.removeItems || []).includes(item)),
+          ...(result.newItems || [])
         ]
       };
 
@@ -176,8 +202,16 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
       const nextPlayerIndex = (currentPlayerIndex + 1) % gameState.players.length;
       const nextPlayerId = gameState.players[nextPlayerIndex].id;
 
+      console.log('Updating game state:', {
+        currentPlayer: gameState.currentPlayer,
+        nextPlayer: nextPlayerId,
+        currentPlayerIndex,
+        nextPlayerIndex,
+        totalPlayers: gameState.players.length
+      });
+
       // Update game state with the result
-      const finalGameState = {
+      const finalGameState: GameState = {
         ...updatedGameState,
         history: [...newHistory, result.response],
         inventory: updatedInventory,
@@ -191,7 +225,7 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
       console.error('Game processing error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Something mysterious happened... (The magic seems to be failing)';
       const newHistory = [...gameState.history, `> Error: ${errorMessage}`];
-      const errorGameState = {
+      const errorGameState: GameState = {
         ...gameState,
         history: newHistory,
         gameStarted: gameState.gameStarted
