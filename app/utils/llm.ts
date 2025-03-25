@@ -220,9 +220,15 @@ Player action: ${action}`;
     if (action.toLowerCase().includes('pick up') || action.toLowerCase().includes('take')) {
       const itemToPick = action.toLowerCase().replace(/^(pick up|take)\s+/, '').trim();
       if (itemToPick) {
-        // If the item was found in the environment, add it to inventory
-        if (newItems.includes(itemToPick)) {
-          formattedResponse = `You pick up the ${itemToPick}.`;
+        // Check if the item was found in the environment
+        const foundItem = newItems.find((item: string) => 
+          item.toLowerCase().includes(itemToPick) || itemToPick.includes(item.toLowerCase())
+        );
+        
+        if (foundItem) {
+          formattedResponse = `You pick up the ${foundItem}.`;
+          // Keep only the picked up item in newItems
+          newItems = [foundItem];
         } else {
           formattedResponse = `You don't see a ${itemToPick} to pick up.`;
           newItems = [];
