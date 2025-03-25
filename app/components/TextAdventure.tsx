@@ -19,12 +19,14 @@ interface GameState {
   currentPlayer: string;
   players: Player[];
   gameStarted: boolean;
+  equippedItems?: { [playerId: string]: string[] };
 }
 
 interface GameContext {
   currentLocation: string;
   inventory: string[];
   history: string[];
+  equippedItems: string[];
 }
 
 interface TextAdventureProps {
@@ -177,6 +179,7 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
       const gameContext: GameContext = {
         currentLocation: gameState.currentLocation,
         inventory: currentPlayerInventory,
+        equippedItems: gameState.equippedItems?.[gameState.currentPlayer] || [],
         history: gameState.history.slice(-3)
       };
 
@@ -197,6 +200,12 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
         ]
       };
 
+      // Update equipped items
+      const updatedEquippedItems = {
+        ...gameState.equippedItems,
+        [gameState.currentPlayer]: result.equippedItems || []
+      };
+
       // Determine next player
       const currentPlayerIndex = gameState.players.findIndex(p => p.id === gameState.currentPlayer);
       const nextPlayerIndex = (currentPlayerIndex + 1) % gameState.players.length;
@@ -215,6 +224,7 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
         ...updatedGameState,
         history: [...newHistory, result.response],
         inventory: updatedInventory,
+        equippedItems: updatedEquippedItems,
         currentLocation: result.location || updatedGameState.currentLocation,
         currentPlayer: nextPlayerId,
         gameStarted: updatedGameState.gameStarted

@@ -3,6 +3,7 @@
 interface GameContext {
   currentLocation: string;
   inventory: string[] | { [playerId: string]: string[] };
+  equippedItems: string[];
   history: string[];
 }
 
@@ -100,6 +101,7 @@ export async function processGameAction(
   location: string;
   newItems: string[];
   removeItems: string[];
+  equippedItems?: string[];
 }> {
   try {
     // Convert inventory to string array if it's an object
@@ -110,6 +112,7 @@ export async function processGameAction(
     const prompt = `
 Current location: ${context.currentLocation}
 Inventory: ${inventoryArray.join(', ') || 'empty'}
+Equipped items: ${context.equippedItems.join(', ') || 'nothing equipped'}
 Recent history: ${context.history.slice(-3).join('\n')}
 
 Player action: ${action}`;
@@ -123,53 +126,84 @@ Player action: ${action}`;
       body: JSON.stringify({
         model: "gpt-3.5-turbo",
         messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: prompt }
+          {
+            role: "system",
+            content: `You are a text adventure game AI. Respond to player actions in a narrative style.
+Current location: ${context.currentLocation}
+Inventory: ${inventoryArray.join(', ') || 'empty'}
+Equipped items: ${context.equippedItems.join(', ') || 'nothing equipped'}
+Recent history: ${context.history.slice(-3).join('\n')}
+
+Game rules:
+1. Items must be explicitly picked up with commands like "pick up", "take", "grab", etc.
+2. Items can be equipped with commands like "wear", "equip", "put on", etc.
+3. Items can be unequipped with commands like "remove", "unequip", "take off", etc.
+4. The "help" command should show the player's current inventory and equipped items.
+5. Items found in the environment should be described but not automatically added to inventory.
+6. The player must explicitly interact with items to pick them up.
+
+Respond to the player's action, and if they find items, describe them but don't automatically add them to inventory.
+If they use the "help" command, show their current inventory and equipped items.
+If they pick up an item, add it to their inventory.
+If they equip an item, move it from inventory to equipped items.
+If they unequip an item, move it from equipped items back to inventory.`
+          },
+          {
+            role: "user",
+            content: action
+          }
         ],
         temperature: 0.7,
+        max_tokens: 500
       })
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
-      console.error('OpenAI API Error:', {
-        status: response.status,
-        statusText: response.statusText,
-        error: errorData
-      });
-      
-      // Check specifically for billing/quota errors
-      if (response.status === 429 || 
-          (errorData?.error?.code === 'insufficient_quota') ||
-          (errorData?.error?.type === 'billing_limit_reached')) {
-        console.log('API limit reached');
-        return API_LIMIT_MESSAGE;
+      const errorData = await response.json();
+      if (errorData.error?.message?.includes('rate_limit_exceeded')) {
+        throw new Error("API usage limit has been reached");
       }
-      
-      return getFallbackResponse(context, action);
+      throw new Error(`API error: ${errorData.error?.message || 'Unknown error'}`);
     }
 
     const data = await response.json();
-    if (!data.choices?.[0]?.message?.content) {
-      console.error('Unexpected API response:', data);
-      return getFallbackResponse(context, action);
+    const aiResponse = data.choices[0].message.content;
+
+    // Parse the AI response to extract new items and location changes
+    const newItems: string[] = [];
+    const removeItems: string[] = [];
+    const equippedItems: string[] = [];
+    let location = context.currentLocation;
+
+    // Extract location changes
+    const locationMatch = aiResponse.match(/location changes to: (.*?)(?:\n|$)/i);
+    if (locationMatch) {
+      location = locationMatch[1].trim();
     }
 
-    const result = data.choices[0].message.content;
-    
-    try {
-      const parsed = JSON.parse(result || '{}');
-      // Validate the response format
-      if (!parsed.response || !parsed.location) {
-        console.error('Invalid response format:', parsed);
-        return getFallbackResponse(context, action);
-      }
-      return parsed;
-    } catch (e) {
-      console.error('JSON Parse Error:', e, 'Raw result:', result);
-      return getFallbackResponse(context, action);
+    // Extract item changes
+    const itemMatches = aiResponse.match(/items: (.*?)(?:\n|$)/i);
+    if (itemMatches) {
+      const items = itemMatches[1].split(',').map(item => item.trim());
+      items.forEach(item => {
+        if (item.startsWith('-')) {
+          removeItems.push(item.substring(1).trim());
+        } else if (item.startsWith('+')) {
+          newItems.push(item.substring(1).trim());
+        } else if (item.startsWith('*')) {
+          equippedItems.push(item.substring(1).trim());
+        }
+      });
     }
-  } catch (error: any) {
+
+    return {
+      response: aiResponse,
+      location,
+      newItems,
+      removeItems,
+      equippedItems
+    };
+  } catch (error) {
     console.error('LLM Error:', error);
     return getFallbackResponse(context, action);
   }

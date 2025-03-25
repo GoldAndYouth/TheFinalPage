@@ -16,6 +16,7 @@ export interface GameRoom {
   game_state: {
     currentLocation: string;
     inventory: { [playerId: string]: string[] };
+    equippedItems: { [playerId: string]: string[] };
     history: string[];
     currentPlayer: string;
     players: {
@@ -52,6 +53,7 @@ export async function createGameRoom() {
           game_state: {
             currentLocation: 'cave',
             inventory: {},
+            equippedItems: {},
             history: ['Welcome to the mysterious cave. The adventure awaits...'],
             currentPlayer: '',
             players: [],
@@ -94,6 +96,9 @@ export async function joinGameRoom(roomId: string, playerName: string) {
     const initialGameState = {
       currentLocation: 'cave',
       inventory: {
+        [playerId]: []
+      },
+      equippedItems: {
         [playerId]: []
       },
       history: ['Welcome to the mysterious cave. The adventure awaits...'],
