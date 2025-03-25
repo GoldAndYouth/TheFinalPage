@@ -25,6 +25,7 @@ export interface GameRoom {
       isReady: boolean;
     }[];
     gameStarted: boolean;
+    foundItems: string[];
     helpInfo?: {
       commands: string[];
       locations: string[];
@@ -64,6 +65,7 @@ export async function createGameRoom() {
             currentPlayer: '',
             players: [],
             gameStarted: false,
+            foundItems: [],
             helpInfo: {
               commands: [
                 'help - Show this help message',
@@ -135,7 +137,8 @@ export async function joinGameRoom(roomId: string, playerName: string) {
         name: playerName,
         isReady: false
       }],
-      gameStarted: false
+      gameStarted: false,
+      foundItems: []
     };
 
     const { error: updateError } = await supabase
