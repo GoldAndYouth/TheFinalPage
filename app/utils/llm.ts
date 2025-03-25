@@ -187,35 +187,49 @@ Player action: ${action}`;
       };
     }
 
-    // Parse the AI response to extract new items and location changes
-    const newItems: string[] = [];
-    const removeItems: string[] = [];
-    const equippedItems: string[] = [];
-    let location = context.currentLocation;
-
-    // Extract location changes
-    const locationMatch = aiResponse.match(/location changes to: (.*?)(?:\n|$)/i);
-    if (locationMatch) {
-      location = locationMatch[1].trim();
+    // Try to parse the response as JSON
+    let parsedResponse;
+    try {
+      parsedResponse = JSON.parse(aiResponse);
+    } catch (e) {
+      // If parsing fails, use the raw response
+      parsedResponse = {
+        response: aiResponse,
+        location: context.currentLocation,
+        newItems: [],
+        removeItems: [],
+        equippedItems: []
+      };
     }
 
+    // Extract location changes
+    let location = parsedResponse.location || context.currentLocation;
+
     // Extract item changes
-    const itemMatches = aiResponse.match(/items: (.*?)(?:\n|$)/i);
-    if (itemMatches) {
-      const items = itemMatches[1].split(',').map((item: string) => item.trim());
-      items.forEach((item: string) => {
-        if (item.startsWith('-')) {
-          removeItems.push(item.substring(1).trim());
-        } else if (item.startsWith('+')) {
-          newItems.push(item.substring(1).trim());
-        } else if (item.startsWith('*')) {
-          equippedItems.push(item.substring(1).trim());
-        }
-      });
+    const newItems = parsedResponse.newItems || [];
+    const removeItems = parsedResponse.removeItems || [];
+    const equippedItems = parsedResponse.equippedItems || [];
+
+    // Format the response for better readability
+    let formattedResponse = parsedResponse.response;
+    
+    // Add item discovery messages
+    if (newItems.length > 0) {
+      formattedResponse += `\n\nYou found: ${newItems.join(', ')}`;
+    }
+    
+    // Add item removal messages
+    if (removeItems.length > 0) {
+      formattedResponse += `\n\nYou lost: ${removeItems.join(', ')}`;
+    }
+    
+    // Add equipped item messages
+    if (equippedItems.length > 0) {
+      formattedResponse += `\n\nYou equipped: ${equippedItems.join(', ')}`;
     }
 
     return {
-      response: aiResponse,
+      response: formattedResponse,
       location,
       newItems,
       removeItems,
