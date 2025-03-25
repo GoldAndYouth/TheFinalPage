@@ -202,8 +202,8 @@ Player action: ${action}`;
     // Extract item changes
     const itemMatches = aiResponse.match(/items: (.*?)(?:\n|$)/i);
     if (itemMatches) {
-      const items = itemMatches[1].split(',').map(item => item.trim());
-      items.forEach(item => {
+      const items = itemMatches[1].split(',').map((item: string) => item.trim());
+      items.forEach((item: string) => {
         if (item.startsWith('-')) {
           removeItems.push(item.substring(1).trim());
         } else if (item.startsWith('+')) {
