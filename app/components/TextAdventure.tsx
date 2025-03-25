@@ -229,7 +229,7 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
 
       // Update the game state in Supabase
       const { error: updateError } = await supabase
-        .from('rooms')
+        .from('game_rooms')
         .update({ game_state: updatedGameState })
         .eq('id', roomId);
 
