@@ -101,6 +101,7 @@ Current game rules:
 - IMPORTANT: Items must be explicitly picked up with commands like "pick up", "take", or "grab"
 - When items are found, describe them but DO NOT add them to inventory automatically
 - Only add items to inventory when the player explicitly picks them up
+- When describing found items, use phrases like "you find", "you see", "there is", "you notice", "you spot", "you discover", or "you uncover"
 - When player uses "help" command, show:
   1. Available commands and their descriptions
   2. Current location and possible destinations
@@ -113,7 +114,8 @@ Return your response in this JSON format:
   "location": "current location keyword",
   "newItems": ["any new items obtained"],
   "removeItems": ["any items used or lost"],
-  "equippedItems": ["any items equipped"]
+  "equippedItems": ["any items equipped"],
+  "foundItems": ["any items found but not yet picked up"]
 }`;
 
 // Response used when API rate limit is exceeded
