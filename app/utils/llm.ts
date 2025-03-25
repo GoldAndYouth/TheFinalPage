@@ -233,6 +233,17 @@ Player action: ${action}`;
           formattedResponse = `You don't see a ${itemToPick} to pick up.`;
           newItems = [];
         }
+      } else {
+        // If no specific item was mentioned, try to find any items in the response
+        const items = formattedResponse.match(/a\s+([^,.]+?)(?:\s+buried|\s+lying|\s+hidden|\s+uncovered)/g);
+        if (items) {
+          const item = items[0].replace(/^a\s+/, '').replace(/\s+(?:buried|lying|hidden|uncovered).*$/, '');
+          formattedResponse = `You pick up the ${item}.`;
+          newItems = [item];
+        } else {
+          formattedResponse = "You need to specify what you want to pick up.";
+          newItems = [];
+        }
       }
     } else {
       // For non-pickup commands, show found items but don't add them to inventory
