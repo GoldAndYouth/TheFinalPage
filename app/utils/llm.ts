@@ -63,7 +63,9 @@ function getFallbackResponse(context: GameContext, action: string) {
       response: "You carefully observe your surroundings. " + responses[0].response,
       location: responses[0].location,
       newItems: [],
-      removeItems: []
+      removeItems: [],
+      equippedItems: [],
+      foundItems: []
     };
   }
   
@@ -72,11 +74,17 @@ function getFallbackResponse(context: GameContext, action: string) {
       response: "You attempt to take something. " + responses[0].response,
       location: responses[0].location,
       newItems: ['mysterious item'],
-      removeItems: []
+      removeItems: [],
+      equippedItems: [],
+      foundItems: []
     };
   }
   
-  return responses[Math.floor(Math.random() * responses.length)];
+  return {
+    ...responses[Math.floor(Math.random() * responses.length)],
+    equippedItems: [],
+    foundItems: []
+  };
 }
 
 // System prompt that defines the game rules and behavior
