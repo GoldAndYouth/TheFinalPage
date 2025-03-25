@@ -83,6 +83,9 @@ Current game rules:
 - Include location hints in your response that match these keywords: cave, forest, sword, dragon
 - Make the story engaging but keep the tone appropriate for all ages
 - Don't allow obviously harmful or inappropriate actions
+- IMPORTANT: Items must be explicitly picked up with commands like "pick up", "take", or "grab"
+- When items are found, describe them but DO NOT add them to inventory automatically
+- Only add items to inventory when the player explicitly picks them up
 - When player uses "help" command, show:
   1. Available commands and their descriptions
   2. Current location and possible destinations
@@ -216,6 +219,7 @@ Player action: ${action}`;
     // Add item discovery messages
     if (newItems.length > 0) {
       formattedResponse += `\n\nYou found: ${newItems.join(', ')}`;
+      formattedResponse += '\nUse "pick up" or "take" to add items to your inventory.';
     }
     
     // Add item removal messages
