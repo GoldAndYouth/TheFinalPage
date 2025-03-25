@@ -4,9 +4,10 @@
 // This includes current location, inventory (can be array or object), equipped items, and game history
 interface GameContext {
   currentLocation: string;
-  inventory: string[] | { [playerId: string]: string[] };
+  inventory: { [playerId: string]: string[] };
   equippedItems: string[];
   history: string[];
+  foundItems: string[];
   helpInfo?: {
     commands: string[];
     locations: string[];
@@ -125,6 +126,7 @@ export async function processGameAction(
   newItems: string[];
   removeItems: string[];
   equippedItems?: string[];
+  foundItems: string[];
 }> {
   try {
     // Convert inventory to a flat array if it's an object (multi-player format)
@@ -198,7 +200,8 @@ Player action: ${action}`;
         location: context.currentLocation,
         newItems: [],
         removeItems: [],
-        equippedItems: context.equippedItems
+        equippedItems: context.equippedItems,
+        foundItems: context.foundItems
       };
     }
 
@@ -212,7 +215,8 @@ Player action: ${action}`;
         location: context.currentLocation,
         newItems: [],
         removeItems: [],
-        equippedItems: []
+        equippedItems: [],
+        foundItems: []
       };
     }
 
@@ -223,46 +227,58 @@ Player action: ${action}`;
     let newItems = parsedResponse.newItems || [];
     const removeItems = parsedResponse.removeItems || [];
     const equippedItems = parsedResponse.equippedItems || [];
+    const foundItems = parsedResponse.foundItems || [];
 
     // Format the response for better readability
     let formattedResponse = parsedResponse.response;
     
     // Handle item pickup commands (pick up, take)
     if (action.toLowerCase().includes('pick up') || action.toLowerCase().includes('take')) {
-      // Extract the item name from the command
-      const itemToPick = action.toLowerCase().replace(/^(pick up|take)\s+/, '').trim();
+      const itemToPick = action.toLowerCase().replace(/(?:pick up|take)\s+/, '').trim();
       
-      if (itemToPick) {
-        // Check if the specified item exists in the environment
-        const foundItem = newItems.find((item: string) => {
-          const itemWords = item.toLowerCase().split(/\s+/);
-          const searchWords = itemToPick.toLowerCase().split(/\s+/);
-          return searchWords.every(word => itemWords.some(itemWord => itemWord.includes(word)));
-        });
-        
-        if (foundItem) {
-          // Item found, update response and keep only the picked up item
-          formattedResponse = `You pick up the ${foundItem}.`;
-          newItems = [foundItem];
-        } else {
-          // Item not found, provide feedback
-          formattedResponse = `You don't see a ${itemToPick} to pick up.`;
-          newItems = [];
+      // First check if the item was just found
+      const foundItem = foundItems.find((item: string) => 
+        item.toLowerCase().includes(itemToPick) || itemToPick.includes(item.toLowerCase())
+      );
+
+      if (foundItem) {
+        // Remove the item from found items and add it to new items
+        const index = foundItems.indexOf(foundItem);
+        if (index > -1) {
+          foundItems.splice(index, 1);
         }
-      } else {
-        // No specific item mentioned, try to find items in the response text
-        const items = formattedResponse.match(/a\s+([^,.]+?)(?:\s+buried|\s+lying|\s+hidden|\s+uncovered|\s+found|\s+uncover)/g);
-        if (items) {
-          // Extract the item name from the description
-          const item = items[0].replace(/^a\s+/, '').replace(/\s+(?:buried|lying|hidden|uncovered|found|uncover).*$/, '');
-          formattedResponse = `You pick up the ${item}.`;
-          newItems = [item];
-        } else {
-          // No items found in the response
-          formattedResponse = "You need to specify what you want to pick up.";
-          newItems = [];
-        }
+        return {
+          response: `You pick up the ${foundItem}.`,
+          location,
+          newItems: [foundItem],
+          removeItems: [],
+          equippedItems: equippedItems,
+          foundItems: foundItems
+        };
       }
+
+      // If no specific item mentioned, try to pick up the first found item
+      if (!itemToPick && foundItems.length > 0) {
+        const item = foundItems[0];
+        foundItems.shift(); // Remove the first item
+        return {
+          response: `You pick up the ${item}.`,
+          location,
+          newItems: [item],
+          removeItems: [],
+          equippedItems: equippedItems,
+          foundItems: foundItems
+        };
+      }
+
+      return {
+        response: "You don't see that item to pick up.",
+        location,
+        newItems: [],
+        removeItems: [],
+        equippedItems: equippedItems,
+        foundItems: foundItems
+      };
     } else {
       // For non-pickup commands, show found items but don't add them to inventory
       if (newItems.length > 0) {
@@ -287,7 +303,8 @@ Player action: ${action}`;
       location,
       newItems,
       removeItems,
-      equippedItems
+      equippedItems,
+      foundItems
     };
   } catch (error) {
     // Handle any errors by falling back to predefined responses

@@ -5,6 +5,7 @@ import AsciiArt from './AsciiArt';
 import { processGameAction, testApiConnection } from '../utils/llm';
 import { subscribeToGameRoom, updateGameState } from '../utils/supabase';
 import type { GameRoom } from '../utils/supabase';
+import { supabase } from '../utils/supabase';
 
 interface Player {
   id: string;
@@ -20,6 +21,7 @@ interface GameState {
   players: Player[];
   gameStarted: boolean;
   equippedItems: { [playerId: string]: string[] };
+  foundItems: string[];
   helpInfo?: {
     commands: string[];
     locations: string[];
@@ -33,6 +35,7 @@ interface GameContext {
   inventory: string[];
   history: string[];
   equippedItems: string[];
+  foundItems: string[];
 }
 
 interface TextAdventureProps {
@@ -50,6 +53,8 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
   const [isApiLimited, setIsApiLimited] = useState(false);
   const subscriptionRef = useRef<any>(null);
   const previousStateRef = useRef<string>('');
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Memoize the state update callback
   const handleGameStateUpdate = useCallback((newGameState: GameState) => {
@@ -122,6 +127,7 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
         players: players,
         gameStarted: false,
         equippedItems: players.reduce((acc, player) => ({ ...acc, [player.id]: [] }), {}),
+        foundItems: [],
         helpInfo: {
           commands: [
             'help - Show this help message',
@@ -158,74 +164,88 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
   }
 
   const handleCommand = async (command: string) => {
-    if (!gameState || !gameState.currentPlayer) {
-      console.error('Game state or current player not found');
-      return;
-    }
+    if (!command.trim()) return;
 
     try {
+      setIsLoading(true);
+      setError(null);
+
+      // Log current state for debugging
       console.log('Processing command:', command);
       console.log('Current game state:', gameState);
       console.log('Current player:', gameState.currentPlayer);
-      console.log('Current player inventory:', gameState.inventory[gameState.currentPlayer]);
-      console.log('Current player equipped items:', gameState.equippedItems[gameState.currentPlayer]);
+      console.log('Current player inventory:', gameState.inventory[gameState.currentPlayer] || []);
+      console.log('Current player equipped items:', gameState.equippedItems[gameState.currentPlayer] || []);
+      console.log('Found items:', gameState.foundItems);
 
-      const currentPlayerInventory = gameState.inventory[gameState.currentPlayer] || [];
-      const currentPlayerEquippedItems = gameState.equippedItems[gameState.currentPlayer] || [];
-
+      // Process the command through the LLM
       const result = await processGameAction(command, {
         currentLocation: gameState.currentLocation,
-        inventory: currentPlayerInventory,
-        equippedItems: currentPlayerEquippedItems,
-        history: gameState.history.slice(-3),
-        helpInfo: gameState.helpInfo
+        inventory: gameState.inventory,
+        equippedItems: gameState.equippedItems[gameState.currentPlayer] || [],
+        history: gameState.history,
+        foundItems: gameState.foundItems,
+        helpInfo: {
+          commands: ['look', 'inventory', 'help', 'dig', 'pick up', 'take', 'use'],
+          locations: ['cave', 'forest', 'dragon'],
+          items: ['sword', 'map', 'key', 'potion'],
+          tips: [
+            'Use "look" to examine your surroundings',
+            'Use "dig" to search for items',
+            'Use "pick up" or "take" to collect items',
+            'Use "inventory" to check your items',
+            'Use "help" for more information'
+          ]
+        }
       });
 
+      // Log the result for debugging
       console.log('Game action result:', result);
 
       // Update game state with the result
-      const updatedGameState: GameState = {
+      const updatedGameState = {
         ...gameState,
-        currentLocation: result.location,
         history: [...gameState.history, result.response],
+        currentLocation: result.location,
         inventory: {
           ...gameState.inventory,
           [gameState.currentPlayer]: [
-            ...currentPlayerInventory,
+            ...(gameState.inventory[gameState.currentPlayer] || []),
             ...result.newItems
           ]
         },
         equippedItems: {
           ...gameState.equippedItems,
           [gameState.currentPlayer]: [
-            ...currentPlayerEquippedItems,
+            ...(gameState.equippedItems[gameState.currentPlayer] || []),
             ...(result.equippedItems || [])
           ]
-        }
+        },
+        foundItems: result.foundItems || []
       };
 
-      // Remove items if any were used or lost
-      if (result.removeItems.length > 0) {
-        updatedGameState.inventory[gameState.currentPlayer] = updatedGameState.inventory[gameState.currentPlayer]
-          .filter(item => !result.removeItems.includes(item));
-        updatedGameState.equippedItems[gameState.currentPlayer] = updatedGameState.equippedItems[gameState.currentPlayer]
-          .filter(item => !result.removeItems.includes(item));
+      // Log the updated state
+      console.log('Updating game state:', updatedGameState);
+
+      // Update the game state in Supabase
+      const { error: updateError } = await supabase
+        .from('rooms')
+        .update({ game_state: updatedGameState })
+        .eq('id', roomId);
+
+      if (updateError) {
+        console.error('Error updating game state:', updateError);
+        setError('Failed to update game state');
+        return;
       }
 
-      // Update current player to next player
-      const currentPlayerIndex = updatedGameState.players.findIndex(p => p.id === updatedGameState.currentPlayer);
-      const nextPlayerIndex = (currentPlayerIndex + 1) % updatedGameState.players.length;
-      updatedGameState.currentPlayer = updatedGameState.players[nextPlayerIndex].id;
-
-      console.log('Updating game state:', updatedGameState);
-      handleGameStateUpdate(updatedGameState);
-    } catch (error) {
-      console.error('Game processing error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Something mysterious happened... (The magic seems to be failing)';
-      handleGameStateUpdate({
-        ...gameState,
-        history: [...gameState.history, errorMessage]
-      });
+      // Update local state
+      setGameState(updatedGameState);
+    } catch (err) {
+      console.error('Error processing command:', err);
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setIsLoading(false);
     }
   };
 
