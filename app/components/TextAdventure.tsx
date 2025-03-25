@@ -199,7 +199,7 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
           ...gameState.equippedItems,
           [gameState.currentPlayer]: [
             ...currentPlayerEquippedItems,
-            ...result.equippedItems
+            ...(result.equippedItems || [])
           ]
         }
       };
