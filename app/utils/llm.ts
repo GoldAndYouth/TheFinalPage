@@ -213,34 +213,18 @@ Player action: ${action}`;
       };
     }
 
-    // Parse the AI response as JSON, with fallback to raw response if parsing fails
-    let parsedResponse;
-    try {
-      parsedResponse = JSON.parse(aiResponse);
-    } catch (e) {
-      parsedResponse = {
-        response: aiResponse,
-        location: context.currentLocation,
-        newItems: [],
-        removeItems: [],
-        equippedItems: [],
-        foundItems: []
-      };
+    // Extract items from the response
+    const itemPattern = /(?:you find|you see|there is|there's|you notice|you spot|you discover|you uncover) (?:a|an|the) ([^.!?]+)/gi;
+    const foundItems: string[] = [];
+    let match;
+    while ((match = itemPattern.exec(aiResponse)) !== null) {
+      const item = match[1].trim().toLowerCase();
+      if (!foundItems.includes(item)) {
+        foundItems.push(item);
+      }
     }
 
-    // Extract location changes from the response
-    let location = parsedResponse.location || context.currentLocation;
-
-    // Extract item-related changes from the response
-    let newItems = parsedResponse.newItems || [];
-    const removeItems = parsedResponse.removeItems || [];
-    const equippedItems = parsedResponse.equippedItems || [];
-    const foundItems = parsedResponse.foundItems || [];
-
-    // Format the response for better readability
-    let formattedResponse = parsedResponse.response;
-    
-    // Handle item pickup commands (pick up, take)
+    // Handle pickup commands
     if (action.toLowerCase().includes('pick up') || action.toLowerCase().includes('take')) {
       const itemToPick = action.toLowerCase().replace(/(?:pick up|take)\s+/, '').trim();
       
@@ -257,10 +241,10 @@ Player action: ${action}`;
         }
         return {
           response: `You pick up the ${foundItem}.`,
-          location,
+          location: context.currentLocation,
           newItems: [foundItem],
           removeItems: [],
-          equippedItems: equippedItems,
+          equippedItems: context.equippedItems,
           foundItems: foundItems
         };
       }
@@ -271,48 +255,47 @@ Player action: ${action}`;
         foundItems.shift(); // Remove the first item
         return {
           response: `You pick up the ${item}.`,
-          location,
+          location: context.currentLocation,
           newItems: [item],
           removeItems: [],
-          equippedItems: equippedItems,
+          equippedItems: context.equippedItems,
           foundItems: foundItems
         };
       }
 
       return {
         response: "You don't see that item to pick up.",
-        location,
+        location: context.currentLocation,
         newItems: [],
         removeItems: [],
-        equippedItems: equippedItems,
+        equippedItems: context.equippedItems,
         foundItems: foundItems
       };
     } else {
       // For non-pickup commands, show found items but don't add them to inventory
-      if (newItems.length > 0) {
-        formattedResponse += `\n\nYou found: ${newItems.join(', ')}`;
+      if (foundItems.length > 0) {
+        let formattedResponse = aiResponse;
+        formattedResponse += `\n\nYou found: ${foundItems.join(', ')}`;
         formattedResponse += '\nUse "pick up" or "take" to add items to your inventory.';
-        newItems = [];
+        return {
+          response: formattedResponse,
+          location: context.currentLocation,
+          newItems: [],
+          removeItems: [],
+          equippedItems: context.equippedItems,
+          foundItems: foundItems
+        };
       }
     }
     
-    // Add messages for removed and equipped items
-    if (removeItems.length > 0) {
-      formattedResponse += `\n\nYou lost: ${removeItems.join(', ')}`;
-    }
-    
-    if (equippedItems.length > 0) {
-      formattedResponse += `\n\nYou equipped: ${equippedItems.join(', ')}`;
-    }
-
     // Return the final processed response
     return {
-      response: formattedResponse,
-      location,
-      newItems,
-      removeItems,
-      equippedItems,
-      foundItems
+      response: aiResponse,
+      location: context.currentLocation,
+      newItems: [],
+      removeItems: [],
+      equippedItems: context.equippedItems,
+      foundItems: foundItems
     };
   } catch (error) {
     // Handle any errors by falling back to predefined responses
