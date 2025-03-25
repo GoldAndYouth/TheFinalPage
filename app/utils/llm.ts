@@ -200,8 +200,22 @@ Player action: ${action}`;
     const data = await response.json();
     const aiResponse = data.choices[0].message.content;
 
+    // Parse the AI response as JSON, with fallback to raw response if parsing fails
+    let parsedResponse;
+    try {
+      parsedResponse = JSON.parse(aiResponse);
+    } catch (e) {
+      parsedResponse = {
+        response: aiResponse,
+        location: context.currentLocation,
+        newItems: [],
+        removeItems: [],
+        equippedItems: [],
+        foundItems: []
+      };
+    }
+
     // Special handling for the help command
-    // Returns formatted help information including current state and available options
     if (action.toLowerCase() === 'help') {
       return {
         response: `=== Game Help ===\n\nCurrent Location: ${context.currentLocation}\n\nInventory: ${inventoryArray.join(', ') || 'empty'}\n\nEquipped Items: ${context.equippedItems.join(', ') || 'nothing equipped'}\n\nAvailable Commands:\n${context.helpInfo?.commands.join('\n') || ''}\n\nPossible Locations:\n${context.helpInfo?.locations.join(', ') || ''}\n\nKnown Items:\n${context.helpInfo?.items.join(', ') || ''}\n\nTips:\n${context.helpInfo?.tips.join('\n') || ''}`,
@@ -213,11 +227,11 @@ Player action: ${action}`;
       };
     }
 
-    // Extract items from the response
+    // Extract items from the response text
     const itemPattern = /(?:you find|you see|there is|there's|you notice|you spot|you discover|you uncover) (?:a|an|the) ([^.!?]+)/gi;
     const foundItems: string[] = [];
     let match;
-    while ((match = itemPattern.exec(aiResponse)) !== null) {
+    while ((match = itemPattern.exec(parsedResponse.response)) !== null) {
       const item = match[1].trim().toLowerCase();
       if (!foundItems.includes(item)) {
         foundItems.push(item);
@@ -274,7 +288,7 @@ Player action: ${action}`;
     } else {
       // For non-pickup commands, show found items but don't add them to inventory
       if (foundItems.length > 0) {
-        let formattedResponse = aiResponse;
+        let formattedResponse = parsedResponse.response;
         formattedResponse += `\n\nYou found: ${foundItems.join(', ')}`;
         formattedResponse += '\nUse "pick up" or "take" to add items to your inventory.';
         return {
@@ -290,7 +304,7 @@ Player action: ${action}`;
     
     // Return the final processed response
     return {
-      response: aiResponse,
+      response: parsedResponse.response,
       location: context.currentLocation,
       newItems: [],
       removeItems: [],
