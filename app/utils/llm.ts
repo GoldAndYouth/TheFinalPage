@@ -250,24 +250,17 @@ Player action: ${action}`;
           newItems = [];
         }
       } else {
-        // No specific item mentioned, check if there are items in newItems first
-        if (newItems.length > 0) {
-          const item = newItems[0];
+        // No specific item mentioned, try to find items in the response text
+        const items = formattedResponse.match(/a\s+([^,.]+?)(?:\s+buried|\s+lying|\s+hidden|\s+uncovered|\s+found|\s+uncover)/g);
+        if (items) {
+          // Extract the item name from the description
+          const item = items[0].replace(/^a\s+/, '').replace(/\s+(?:buried|lying|hidden|uncovered|found|uncover).*$/, '');
           formattedResponse = `You pick up the ${item}.`;
           newItems = [item];
         } else {
-          // If no items in newItems, try to find items in the response text
-          const items = formattedResponse.match(/a\s+([^,.]+?)(?:\s+buried|\s+lying|\s+hidden|\s+uncovered|\s+found|\s+uncover)/g);
-          if (items) {
-            // Extract the item name from the description
-            const item = items[0].replace(/^a\s+/, '').replace(/\s+(?:buried|lying|hidden|uncovered|found|uncover).*$/, '');
-            formattedResponse = `You pick up the ${item}.`;
-            newItems = [item];
-          } else {
-            // No items found in the response
-            formattedResponse = "You need to specify what you want to pick up.";
-            newItems = [];
-          }
+          // No items found in the response
+          formattedResponse = "You need to specify what you want to pick up.";
+          newItems = [];
         }
       }
     } else {
