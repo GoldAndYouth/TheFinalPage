@@ -234,9 +234,11 @@ Player action: ${action}`;
       
       if (itemToPick) {
         // Check if the specified item exists in the environment
-        const foundItem = newItems.find((item: string) => 
-          item.toLowerCase().includes(itemToPick) || itemToPick.includes(item.toLowerCase())
-        );
+        const foundItem = newItems.find((item: string) => {
+          const itemWords = item.toLowerCase().split(/\s+/);
+          const searchWords = itemToPick.toLowerCase().split(/\s+/);
+          return searchWords.every(word => itemWords.some(itemWord => itemWord.includes(word)));
+        });
         
         if (foundItem) {
           // Item found, update response and keep only the picked up item
