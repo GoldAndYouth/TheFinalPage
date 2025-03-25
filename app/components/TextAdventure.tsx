@@ -157,120 +157,75 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
     );
   }
 
-  const handleCommand = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || isProcessing || !gameState) return;
-
-    console.log('Current game state:', {
-      currentPlayer: gameState.currentPlayer,
-      players: gameState.players,
-      inventory: gameState.inventory,
-      history: gameState.history
-    });
-
-    const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
-    if (!currentPlayer) {
-      console.error('Current player not found in game state. Game state:', gameState);
+  const handleCommand = async (command: string) => {
+    if (!gameState || !gameState.currentPlayer) {
+      console.error('Game state or current player not found');
       return;
     }
 
-    console.log('Processing command for player:', {
-      playerId: currentPlayer.id,
-      playerName: currentPlayer.name,
-      command: input.trim()
-    });
-
-    setIsProcessing(true);
-
     try {
-      const command = input.trim();
-      setInput('');
-      setCommandCount(prev => prev + 1);
+      console.log('Processing command:', command);
+      console.log('Current game state:', gameState);
+      console.log('Current player:', gameState.currentPlayer);
+      console.log('Current player inventory:', gameState.inventory[gameState.currentPlayer]);
+      console.log('Current player equipped items:', gameState.equippedItems[gameState.currentPlayer]);
 
-      // Add command to history immediately
-      const newHistory = [...gameState.history, `> ${currentPlayer.name}: ${command}`];
-      const updatedGameState: GameState = {
-        ...gameState,
-        history: newHistory,
-        gameStarted: gameState.gameStarted
-      };
-      setGameState(updatedGameState);
-
-      // Ensure inventory exists for current player and is properly initialized
       const currentPlayerInventory = gameState.inventory[gameState.currentPlayer] || [];
-      console.log('Current player inventory:', {
-        playerId: gameState.currentPlayer,
-        inventory: currentPlayerInventory
-      });
+      const currentPlayerEquippedItems = gameState.equippedItems[gameState.currentPlayer] || [];
 
-      // Convert multiplayer state to single-player context for LLM
-      const gameContext: GameContext = {
+      const result = await processGameAction(command, {
         currentLocation: gameState.currentLocation,
         inventory: currentPlayerInventory,
-        equippedItems: gameState.equippedItems[gameState.currentPlayer] || [],
-        history: gameState.history.slice(-3)
-      };
-
-      // Process the command
-      const result = await processGameAction(command, gameContext);
-      
-      if (result.response.includes("API usage limit has been reached")) {
-        setIsApiLimited(true);
-        throw new Error("API usage limit has been reached");
-      }
-
-      // Update inventory for current player with safety checks
-      const updatedInventory = {
-        ...gameState.inventory,
-        [gameState.currentPlayer]: [
-          ...(currentPlayerInventory || []).filter(item => !(result.removeItems || []).includes(item)),
-          ...(result.newItems || [])
-        ]
-      };
-
-      // Update equipped items
-      const updatedEquippedItems = {
-        ...gameState.equippedItems,
-        [gameState.currentPlayer]: result.equippedItems || []
-      };
-
-      // Determine next player
-      const currentPlayerIndex = gameState.players.findIndex(p => p.id === gameState.currentPlayer);
-      const nextPlayerIndex = (currentPlayerIndex + 1) % gameState.players.length;
-      const nextPlayerId = gameState.players[nextPlayerIndex].id;
-
-      console.log('Updating game state:', {
-        currentPlayer: gameState.currentPlayer,
-        nextPlayer: nextPlayerId,
-        currentPlayerIndex,
-        nextPlayerIndex,
-        totalPlayers: gameState.players.length
+        equippedItems: currentPlayerEquippedItems,
+        history: gameState.history.slice(-3),
+        helpInfo: gameState.helpInfo
       });
 
+      console.log('Game action result:', result);
+
       // Update game state with the result
-      const finalGameState: GameState = {
-        ...updatedGameState,
-        history: [...newHistory, result.response],
-        inventory: updatedInventory,
-        equippedItems: updatedEquippedItems,
-        currentLocation: result.location || updatedGameState.currentLocation,
-        currentPlayer: nextPlayerId,
-        gameStarted: updatedGameState.gameStarted
+      const updatedGameState: GameState = {
+        ...gameState,
+        currentLocation: result.location,
+        history: [...gameState.history, result.response],
+        inventory: {
+          ...gameState.inventory,
+          [gameState.currentPlayer]: [
+            ...currentPlayerInventory,
+            ...result.newItems
+          ]
+        },
+        equippedItems: {
+          ...gameState.equippedItems,
+          [gameState.currentPlayer]: [
+            ...currentPlayerEquippedItems,
+            ...result.equippedItems
+          ]
+        }
       };
 
-      await updateGameState(roomId, finalGameState);
+      // Remove items if any were used or lost
+      if (result.removeItems.length > 0) {
+        updatedGameState.inventory[gameState.currentPlayer] = updatedGameState.inventory[gameState.currentPlayer]
+          .filter(item => !result.removeItems.includes(item));
+        updatedGameState.equippedItems[gameState.currentPlayer] = updatedGameState.equippedItems[gameState.currentPlayer]
+          .filter(item => !result.removeItems.includes(item));
+      }
+
+      // Update current player to next player
+      const currentPlayerIndex = updatedGameState.players.findIndex(p => p.id === updatedGameState.currentPlayer);
+      const nextPlayerIndex = (currentPlayerIndex + 1) % updatedGameState.players.length;
+      updatedGameState.currentPlayer = updatedGameState.players[nextPlayerIndex].id;
+
+      console.log('Updating game state:', updatedGameState);
+      handleGameStateUpdate(updatedGameState);
     } catch (error) {
       console.error('Game processing error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Something mysterious happened... (The magic seems to be failing)';
-      const newHistory = [...gameState.history, `> Error: ${errorMessage}`];
-      const errorGameState: GameState = {
+      handleGameStateUpdate({
         ...gameState,
-        history: newHistory,
-        gameStarted: gameState.gameStarted
-      };
-      await updateGameState(roomId, errorGameState);
-    } finally {
-      setIsProcessing(false);
+        history: [...gameState.history, errorMessage]
+      });
     }
   };
 
@@ -335,7 +290,7 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
           )}
         </div>
         
-        <form onSubmit={handleCommand} className="flex gap-2">
+        <form onSubmit={(e) => { e.preventDefault(); handleCommand(input); }} className="flex gap-2">
           <input
             type="text"
             value={input}

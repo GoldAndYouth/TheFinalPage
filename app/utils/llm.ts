@@ -216,12 +216,25 @@ Player action: ${action}`;
     // Format the response for better readability
     let formattedResponse = parsedResponse.response;
     
-    // Add item discovery messages
-    if (newItems.length > 0) {
-      formattedResponse += `\n\nYou found: ${newItems.join(', ')}`;
-      formattedResponse += '\nUse "pick up" or "take" to add items to your inventory.';
-      // Clear newItems since they haven't been picked up yet
-      newItems = [];
+    // Handle item pickup commands
+    if (action.toLowerCase().includes('pick up') || action.toLowerCase().includes('take')) {
+      const itemToPick = action.toLowerCase().replace(/^(pick up|take)\s+/, '').trim();
+      if (itemToPick) {
+        // If the item was found in the environment, add it to inventory
+        if (newItems.includes(itemToPick)) {
+          formattedResponse = `You pick up the ${itemToPick}.`;
+        } else {
+          formattedResponse = `You don't see a ${itemToPick} to pick up.`;
+          newItems = [];
+        }
+      }
+    } else {
+      // For non-pickup commands, show found items but don't add them to inventory
+      if (newItems.length > 0) {
+        formattedResponse += `\n\nYou found: ${newItems.join(', ')}`;
+        formattedResponse += '\nUse "pick up" or "take" to add items to your inventory.';
+        newItems = [];
+      }
     }
     
     // Add item removal messages
