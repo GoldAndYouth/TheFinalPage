@@ -251,10 +251,10 @@ Player action: ${action}`;
         }
       } else {
         // No specific item mentioned, try to find items in the response text
-        const items = formattedResponse.match(/a\s+([^,.]+?)(?:\s+buried|\s+lying|\s+hidden|\s+uncovered)/g);
+        const items = formattedResponse.match(/a\s+([^,.]+?)(?:\s+buried|\s+lying|\s+hidden|\s+uncovered|\s+found)/g);
         if (items) {
           // Extract the item name from the description
-          const item = items[0].replace(/^a\s+/, '').replace(/\s+(?:buried|lying|hidden|uncovered).*$/, '');
+          const item = items[0].replace(/^a\s+/, '').replace(/\s+(?:buried|lying|hidden|uncovered|found).*$/, '');
           formattedResponse = `You pick up the ${item}.`;
           newItems = [item];
         } else {
