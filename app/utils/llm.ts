@@ -209,7 +209,7 @@ Player action: ${action}`;
     let location = parsedResponse.location || context.currentLocation;
 
     // Extract item changes
-    const newItems = parsedResponse.newItems || [];
+    let newItems = parsedResponse.newItems || [];
     const removeItems = parsedResponse.removeItems || [];
     const equippedItems = parsedResponse.equippedItems || [];
 
@@ -220,6 +220,8 @@ Player action: ${action}`;
     if (newItems.length > 0) {
       formattedResponse += `\n\nYou found: ${newItems.join(', ')}`;
       formattedResponse += '\nUse "pick up" or "take" to add items to your inventory.';
+      // Clear newItems since they haven't been picked up yet
+      newItems = [];
     }
     
     // Add item removal messages
