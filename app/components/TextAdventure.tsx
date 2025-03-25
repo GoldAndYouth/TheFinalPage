@@ -19,7 +19,7 @@ interface GameState {
   currentPlayer: string;
   players: Player[];
   gameStarted: boolean;
-  equippedItems?: { [playerId: string]: string[] };
+  equippedItems: { [playerId: string]: string[] };
   helpInfo?: {
     commands: string[];
     locations: string[];
@@ -121,6 +121,7 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
         currentPlayer: players[0].id,
         players: players,
         gameStarted: false,
+        equippedItems: players.reduce((acc, player) => ({ ...acc, [player.id]: [] }), {}),
         helpInfo: {
           commands: [
             'help - Show this help message',
@@ -206,7 +207,7 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
       const gameContext: GameContext = {
         currentLocation: gameState.currentLocation,
         inventory: currentPlayerInventory,
-        equippedItems: gameState.equippedItems?.[gameState.currentPlayer] || [],
+        equippedItems: gameState.equippedItems[gameState.currentPlayer] || [],
         history: gameState.history.slice(-3)
       };
 
