@@ -1,5 +1,7 @@
 // Remove the OpenAI import since we're using fetch
 
+// Interface defining the structure of game context data
+// This includes current location, inventory (can be array or object), equipped items, and game history
 interface GameContext {
   currentLocation: string;
   inventory: string[] | { [playerId: string]: string[] };
@@ -13,7 +15,8 @@ interface GameContext {
   };
 }
 
-// Fallback responses when API is unavailable
+// Fallback responses used when the API is unavailable
+// These provide basic responses for different locations to maintain game continuity
 const FALLBACK_RESPONSES = {
   cave: [
     {
@@ -47,7 +50,8 @@ const FALLBACK_RESPONSES = {
   ]
 };
 
-// Helper function to get a fallback response
+// Helper function to get fallback responses based on current location and action
+// This ensures the game can continue even if the API is unavailable
 function getFallbackResponse(context: GameContext, action: string) {
   const location = context.currentLocation as keyof typeof FALLBACK_RESPONSES;
   const responses = FALLBACK_RESPONSES[location] || FALLBACK_RESPONSES.cave;
@@ -74,6 +78,8 @@ function getFallbackResponse(context: GameContext, action: string) {
   return responses[Math.floor(Math.random() * responses.length)];
 }
 
+// System prompt that defines the game rules and behavior
+// This is sent to the LLM to guide its responses and maintain game consistency
 const SYSTEM_PROMPT = `You are a text adventure game engine. You should respond to player actions in an engaging, descriptive way.
 Current game rules:
 - Players can freely explore and interact with the environment
@@ -101,6 +107,7 @@ Return your response in this JSON format:
   "equippedItems": ["any items equipped"]
 }`;
 
+// Response used when API rate limit is exceeded
 const API_LIMIT_MESSAGE = {
   response: "I apologize, but the game needs to rest for now. The API usage limit has been reached. Please try again later!",
   location: "cave",
@@ -108,6 +115,7 @@ const API_LIMIT_MESSAGE = {
   removeItems: []
 };
 
+// Main function to process player actions and generate game responses
 export async function processGameAction(
   action: string,
   context: GameContext
@@ -119,11 +127,12 @@ export async function processGameAction(
   equippedItems?: string[];
 }> {
   try {
-    // Convert inventory to string array if it's an object
+    // Convert inventory to a flat array if it's an object (multi-player format)
     const inventoryArray = Array.isArray(context.inventory) 
       ? context.inventory 
       : Object.values(context.inventory).flat();
 
+    // Construct the prompt for the LLM with current game state
     const prompt = `
 Current location: ${context.currentLocation}
 Inventory: ${inventoryArray.join(', ') || 'empty'}
@@ -145,6 +154,7 @@ ${context.helpInfo.tips.join('\n')}
 
 Player action: ${action}`;
 
+    // Make API call to OpenAI
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -168,6 +178,7 @@ Player action: ${action}`;
       })
     });
 
+    // Handle API errors, particularly rate limiting
     if (!response.ok) {
       const errorData = await response.json();
       if (errorData.error?.message?.includes('rate_limit_exceeded')) {
@@ -179,7 +190,8 @@ Player action: ${action}`;
     const data = await response.json();
     const aiResponse = data.choices[0].message.content;
 
-    // Special handling for help command
+    // Special handling for the help command
+    // Returns formatted help information including current state and available options
     if (action.toLowerCase() === 'help') {
       return {
         response: `=== Game Help ===\n\nCurrent Location: ${context.currentLocation}\n\nInventory: ${inventoryArray.join(', ') || 'empty'}\n\nEquipped Items: ${context.equippedItems.join(', ') || 'nothing equipped'}\n\nAvailable Commands:\n${context.helpInfo?.commands.join('\n') || ''}\n\nPossible Locations:\n${context.helpInfo?.locations.join(', ') || ''}\n\nKnown Items:\n${context.helpInfo?.items.join(', ') || ''}\n\nTips:\n${context.helpInfo?.tips.join('\n') || ''}`,
@@ -190,12 +202,11 @@ Player action: ${action}`;
       };
     }
 
-    // Try to parse the response as JSON
+    // Parse the AI response as JSON, with fallback to raw response if parsing fails
     let parsedResponse;
     try {
       parsedResponse = JSON.parse(aiResponse);
     } catch (e) {
-      // If parsing fails, use the raw response
       parsedResponse = {
         response: aiResponse,
         location: context.currentLocation,
@@ -205,10 +216,10 @@ Player action: ${action}`;
       };
     }
 
-    // Extract location changes
+    // Extract location changes from the response
     let location = parsedResponse.location || context.currentLocation;
 
-    // Extract item changes
+    // Extract item-related changes from the response
     let newItems = parsedResponse.newItems || [];
     const removeItems = parsedResponse.removeItems || [];
     const equippedItems = parsedResponse.equippedItems || [];
@@ -216,31 +227,36 @@ Player action: ${action}`;
     // Format the response for better readability
     let formattedResponse = parsedResponse.response;
     
-    // Handle item pickup commands
+    // Handle item pickup commands (pick up, take)
     if (action.toLowerCase().includes('pick up') || action.toLowerCase().includes('take')) {
+      // Extract the item name from the command
       const itemToPick = action.toLowerCase().replace(/^(pick up|take)\s+/, '').trim();
+      
       if (itemToPick) {
-        // Check if the item was found in the environment
+        // Check if the specified item exists in the environment
         const foundItem = newItems.find((item: string) => 
           item.toLowerCase().includes(itemToPick) || itemToPick.includes(item.toLowerCase())
         );
         
         if (foundItem) {
+          // Item found, update response and keep only the picked up item
           formattedResponse = `You pick up the ${foundItem}.`;
-          // Keep only the picked up item in newItems
           newItems = [foundItem];
         } else {
+          // Item not found, provide feedback
           formattedResponse = `You don't see a ${itemToPick} to pick up.`;
           newItems = [];
         }
       } else {
-        // If no specific item was mentioned, try to find any items in the response
+        // No specific item mentioned, try to find items in the response text
         const items = formattedResponse.match(/a\s+([^,.]+?)(?:\s+buried|\s+lying|\s+hidden|\s+uncovered)/g);
         if (items) {
+          // Extract the item name from the description
           const item = items[0].replace(/^a\s+/, '').replace(/\s+(?:buried|lying|hidden|uncovered).*$/, '');
           formattedResponse = `You pick up the ${item}.`;
           newItems = [item];
         } else {
+          // No items found in the response
           formattedResponse = "You need to specify what you want to pick up.";
           newItems = [];
         }
@@ -254,16 +270,16 @@ Player action: ${action}`;
       }
     }
     
-    // Add item removal messages
+    // Add messages for removed and equipped items
     if (removeItems.length > 0) {
       formattedResponse += `\n\nYou lost: ${removeItems.join(', ')}`;
     }
     
-    // Add equipped item messages
     if (equippedItems.length > 0) {
       formattedResponse += `\n\nYou equipped: ${equippedItems.join(', ')}`;
     }
 
+    // Return the final processed response
     return {
       response: formattedResponse,
       location,
@@ -272,11 +288,14 @@ Player action: ${action}`;
       equippedItems
     };
   } catch (error) {
+    // Handle any errors by falling back to predefined responses
     console.error('LLM Error:', error);
     return getFallbackResponse(context, action);
   }
 }
 
+// Function to test the API connection
+// Used to verify the API key and connection are working properly
 export async function testApiConnection(): Promise<{success: boolean, message: string}> {
   try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
