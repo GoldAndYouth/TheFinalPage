@@ -25,6 +25,12 @@ export interface GameRoom {
       isReady: boolean;
     }[];
     gameStarted: boolean;
+    helpInfo?: {
+      commands: string[];
+      locations: string[];
+      items: string[];
+      tips: string[];
+    };
   };
   is_active: boolean;
 }
@@ -57,7 +63,28 @@ export async function createGameRoom() {
             history: ['Welcome to the mysterious cave. The adventure awaits...'],
             currentPlayer: '',
             players: [],
-            gameStarted: false
+            gameStarted: false,
+            helpInfo: {
+              commands: [
+                'help - Show this help message',
+                'look - Examine your surroundings',
+                'inventory - Check your inventory',
+                'take/pick up [item] - Pick up an item',
+                'drop [item] - Drop an item',
+                'wear/equip [item] - Equip an item',
+                'remove/unequip [item] - Unequip an item',
+                'go [direction] - Move in a direction',
+                'examine [item] - Look at an item closely'
+              ],
+              locations: ['cave', 'forest', 'dragon\'s lair'],
+              items: ['sword', 'shield', 'torch', 'key', 'map'],
+              tips: [
+                'Items must be explicitly picked up with "take" or "pick up"',
+                'Use "help" anytime to see available commands',
+                'Some items can be equipped for special effects',
+                'Pay attention to your surroundings for clues'
+              ]
+            }
           },
           is_active: true
         }

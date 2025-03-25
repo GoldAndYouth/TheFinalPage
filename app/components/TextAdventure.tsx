@@ -20,6 +20,12 @@ interface GameState {
   players: Player[];
   gameStarted: boolean;
   equippedItems?: { [playerId: string]: string[] };
+  helpInfo?: {
+    commands: string[];
+    locations: string[];
+    items: string[];
+    tips: string[];
+  };
 }
 
 interface GameContext {
@@ -114,7 +120,28 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
         history: ['Welcome to the cave! Your adventure begins...'],
         currentPlayer: players[0].id,
         players: players,
-        gameStarted: false
+        gameStarted: false,
+        helpInfo: {
+          commands: [
+            'help - Show this help message',
+            'look - Examine your surroundings',
+            'inventory - Check your inventory',
+            'take/pick up [item] - Pick up an item',
+            'drop [item] - Drop an item',
+            'wear/equip [item] - Equip an item',
+            'remove/unequip [item] - Unequip an item',
+            'go [direction] - Move in a direction',
+            'examine [item] - Look at an item closely'
+          ],
+          locations: ['cave', 'forest', 'dragon\'s lair'],
+          items: ['sword', 'shield', 'torch', 'key', 'map'],
+          tips: [
+            'Items must be explicitly picked up with "take" or "pick up"',
+            'Use "help" anytime to see available commands',
+            'Some items can be equipped for special effects',
+            'Pay attention to your surroundings for clues'
+          ]
+        }
       };
       handleGameStateUpdate(initialGameState);
     }

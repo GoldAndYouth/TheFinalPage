@@ -5,6 +5,12 @@ interface GameContext {
   inventory: string[] | { [playerId: string]: string[] };
   equippedItems: string[];
   history: string[];
+  helpInfo?: {
+    commands: string[];
+    locations: string[];
+    items: string[];
+    tips: string[];
+  };
 }
 
 // Fallback responses when API is unavailable
@@ -77,13 +83,19 @@ Current game rules:
 - Include location hints in your response that match these keywords: cave, forest, sword, dragon
 - Make the story engaging but keep the tone appropriate for all ages
 - Don't allow obviously harmful or inappropriate actions
+- When player uses "help" command, show:
+  1. Available commands and their descriptions
+  2. Current location and possible destinations
+  3. Current inventory and equipped items
+  4. Helpful tips for gameplay
 
 Return your response in this JSON format:
 {
   "response": "Description of what happens",
   "location": "current location keyword",
   "newItems": ["any new items obtained"],
-  "removeItems": ["any items used or lost"]
+  "removeItems": ["any items used or lost"],
+  "equippedItems": ["any items equipped"]
 }`;
 
 const API_LIMIT_MESSAGE = {
@@ -114,6 +126,19 @@ Current location: ${context.currentLocation}
 Inventory: ${inventoryArray.join(', ') || 'empty'}
 Equipped items: ${context.equippedItems.join(', ') || 'nothing equipped'}
 Recent history: ${context.history.slice(-3).join('\n')}
+${context.helpInfo ? `
+Available commands:
+${context.helpInfo.commands.join('\n')}
+
+Possible locations:
+${context.helpInfo.locations.join(', ')}
+
+Known items:
+${context.helpInfo.items.join(', ')}
+
+Tips:
+${context.helpInfo.tips.join('\n')}
+` : ''}
 
 Player action: ${action}`;
 
