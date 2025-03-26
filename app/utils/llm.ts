@@ -280,8 +280,8 @@ Player action: ${action}`;
         const itemWords = item.toLowerCase().split(' ');
         const commandWords = itemToPick.toLowerCase().split(' ');
         
-        // Check if all words from the command are present in the item name
-        const matches = commandWords.every(word => 
+        // Check if any word from the command matches any word in the item name
+        const matches = commandWords.some(word => 
           itemWords.some(itemWord => itemWord.includes(word) || word.includes(itemWord))
         );
         
@@ -297,8 +297,8 @@ Player action: ${action}`;
         const itemWords = item.toLowerCase().split(' ');
         const commandWords = itemToPick.toLowerCase().split(' ');
         
-        // Check if all words from the command are present in the item name
-        const matches = commandWords.every(word => 
+        // Check if any word from the command matches any word in the item name
+        const matches = commandWords.some(word => 
           itemWords.some(itemWord => itemWord.includes(word) || word.includes(itemWord))
         );
         
@@ -344,8 +344,8 @@ Player action: ${action}`;
       }
 
       // If no specific item mentioned, try to pick up the first found item
-      if (!itemToPick && foundItems.length > 0) {
-        const item = foundItems[0];
+      if (!itemToPick && (foundItems.length > 0 || context.foundItems.length > 0)) {
+        const item = foundItems[0] || context.foundItems[0];
         console.log('No specific item mentioned, picking up first found item:', item);
         
         // Check if the first item needs special handling
@@ -360,7 +360,11 @@ Player action: ${action}`;
           };
         }
         
-        foundItems.shift(); // Remove the first item
+        // Remove the item from found items
+        const index = foundItems.indexOf(item);
+        if (index > -1) {
+          foundItems.splice(index, 1);
+        }
         console.log('Updated found items:', foundItems);
         
         return {
