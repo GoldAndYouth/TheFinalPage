@@ -172,11 +172,13 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
 
       // Log current state for debugging
       console.log('Processing command:', command);
-      console.log('Current game state:', gameState);
-      console.log('Current player:', gameState.currentPlayer);
-      console.log('Current player inventory:', gameState.inventory[gameState.currentPlayer] || []);
-      console.log('Current player equipped items:', gameState.equippedItems[gameState.currentPlayer] || []);
-      console.log('Found items:', gameState.foundItems);
+      console.log('Current game state:', {
+        location: gameState.currentLocation,
+        currentPlayer: gameState.currentPlayer,
+        inventory: gameState.inventory,
+        equippedItems: gameState.equippedItems,
+        foundItems: gameState.foundItems
+      });
 
       // Process the command through the LLM
       const aiResponse = await processGameAction(command, {
@@ -199,8 +201,14 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
         }
       });
 
-      // Log the result for debugging
-      console.log('Game action result:', aiResponse);
+      // Log the AI response for debugging
+      console.log('AI Response:', {
+        response: aiResponse.response,
+        location: aiResponse.location,
+        newItems: aiResponse.newItems,
+        equippedItems: aiResponse.equippedItems,
+        foundItems: aiResponse.foundItems
+      });
 
       // Update game state with AI response
       const updatedGameState: GameState = {
@@ -223,20 +231,33 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
         foundItems: aiResponse.foundItems || [],
         history: [...gameState.history, aiResponse.response]
       };
+
+      // Log the updated game state before saving to Supabase
+      console.log('Updated game state before Supabase:', {
+        location: updatedGameState.currentLocation,
+        currentPlayer: updatedGameState.currentPlayer,
+        inventory: updatedGameState.inventory,
+        equippedItems: updatedGameState.equippedItems,
+        foundItems: updatedGameState.foundItems
+      });
       
       // Update game state in Supabase
-      const { error: updateError } = await supabase
+      const { data: updateData, error: updateError } = await supabase
         .from('game_rooms')
         .update({
           game_state: updatedGameState,
           last_updated: new Date().toISOString()
         })
-        .eq('id', roomId);
+        .eq('id', roomId)
+        .select();
 
       if (updateError) {
         console.error('Error updating game state:', updateError);
         throw new Error('Failed to update game state');
       }
+
+      // Log the Supabase response
+      console.log('Supabase update response:', updateData);
 
       // Update local state
       setGameState(updatedGameState);

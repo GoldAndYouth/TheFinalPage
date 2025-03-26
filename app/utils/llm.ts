@@ -244,17 +244,42 @@ Player action: ${action}`;
     if (action.toLowerCase().includes('pick up') || action.toLowerCase().includes('take')) {
       const itemToPick = action.toLowerCase().replace(/(?:pick up|take)\s+/, '').trim();
       
+      console.log('Processing pickup command:', {
+        action,
+        itemToPick,
+        foundItems,
+        currentInventory: context.inventory
+      });
+      
       // First check if the item was just found
-      const foundItem = foundItems.find((item: string) => 
-        item.toLowerCase().includes(itemToPick) || itemToPick.includes(item.toLowerCase())
-      );
+      const foundItem = foundItems.find((item: string) => {
+        const itemWords = item.toLowerCase().split(' ');
+        const commandWords = itemToPick.toLowerCase().split(' ');
+        
+        // Check if all words from the command are present in the item name
+        const matches = commandWords.every(word => 
+          itemWords.some(itemWord => itemWord.includes(word) || word.includes(itemWord))
+        );
+        
+        console.log('Item matching:', {
+          item,
+          itemWords,
+          commandWords,
+          matches
+        });
+        
+        return matches;
+      });
 
       if (foundItem) {
+        console.log('Found matching item:', foundItem);
         // Remove the item from found items and add it to new items
         const index = foundItems.indexOf(foundItem);
         if (index > -1) {
           foundItems.splice(index, 1);
         }
+        console.log('Updated found items:', foundItems);
+        
         return {
           response: `You pick up the ${foundItem}.`,
           location: context.currentLocation,
@@ -268,7 +293,10 @@ Player action: ${action}`;
       // If no specific item mentioned, try to pick up the first found item
       if (!itemToPick && foundItems.length > 0) {
         const item = foundItems[0];
+        console.log('No specific item mentioned, picking up first found item:', item);
         foundItems.shift(); // Remove the first item
+        console.log('Updated found items:', foundItems);
+        
         return {
           response: `You pick up the ${item}.`,
           location: context.currentLocation,
@@ -279,6 +307,7 @@ Player action: ${action}`;
         };
       }
 
+      console.log('No matching item found');
       return {
         response: "You don't see that item to pick up.",
         location: context.currentLocation,
