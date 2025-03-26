@@ -230,7 +230,7 @@ Player action: ${action}`;
     }
 
     // Extract found items from the response
-    const foundItems: string[] = [];
+    const foundItems: string[] = [...context.foundItems]; // Start with existing found items
     
     // Look for items in various formats
     const itemPatterns = [
@@ -361,7 +361,7 @@ Player action: ${action}`;
         newItems: [],
         removeItems: [],
         equippedItems: context.equippedItems,
-        foundItems: foundItems
+        foundItems: foundItems // Keep the found items even if pickup fails
       };
     } else {
       // For non-pickup commands, show found items but don't add them to inventory
