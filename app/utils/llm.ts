@@ -284,6 +284,18 @@ Player action: ${action}`;
         }
         console.log('Updated found items:', foundItems);
         
+        // Check if the item needs special handling (like opening a chest)
+        if (foundItem.toLowerCase().includes('chest') || foundItem.toLowerCase().includes('box')) {
+          return {
+            response: `You need to open the ${foundItem} first before you can take anything from it. Try using the "open" command.`,
+            location: context.currentLocation,
+            newItems: [],
+            removeItems: [],
+            equippedItems: context.equippedItems,
+            foundItems: foundItems
+          };
+        }
+        
         return {
           response: `You pick up the ${foundItem}.`,
           location: context.currentLocation,
@@ -298,6 +310,19 @@ Player action: ${action}`;
       if (!itemToPick && foundItems.length > 0) {
         const item = foundItems[0];
         console.log('No specific item mentioned, picking up first found item:', item);
+        
+        // Check if the first item needs special handling
+        if (item.toLowerCase().includes('chest') || item.toLowerCase().includes('box')) {
+          return {
+            response: `You need to open the ${item} first before you can take anything from it. Try using the "open" command.`,
+            location: context.currentLocation,
+            newItems: [],
+            removeItems: [],
+            equippedItems: context.equippedItems,
+            foundItems: foundItems
+          };
+        }
+        
         foundItems.shift(); // Remove the first item
         console.log('Updated found items:', foundItems);
         
