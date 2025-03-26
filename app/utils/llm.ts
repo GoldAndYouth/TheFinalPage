@@ -231,7 +231,7 @@ Player action: ${action}`;
     }
 
     // Extract found items from the response
-    const foundItems: string[] = [];
+    const foundItems: string[] = [...context.foundItems]; // Start with existing found items
     
     // Look for items in various formats
     const itemPatterns = [

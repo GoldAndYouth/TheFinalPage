@@ -225,7 +225,7 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
           ...gameState.equippedItems,
           [gameState.currentPlayer]: aiResponse.equippedItems || []
         },
-        foundItems: aiResponse.foundItems || [],
+        foundItems: aiResponse.foundItems || gameState.foundItems || [],
         history: [...gameState.history, aiResponse.response]
       };
 
