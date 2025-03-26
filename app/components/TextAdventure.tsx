@@ -179,7 +179,7 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
       console.log('Found items:', gameState.foundItems);
 
       // Process the command through the LLM
-      const result = await processGameAction(command, {
+      const aiResponse = await processGameAction(command, {
         currentLocation: gameState.currentLocation,
         inventory: gameState.inventory,
         equippedItems: gameState.equippedItems[gameState.currentPlayer] || [],
@@ -200,43 +200,42 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
       });
 
       // Log the result for debugging
-      console.log('Game action result:', result);
+      console.log('Game action result:', aiResponse);
 
-      // Update game state with the result
-      const updatedGameState = {
+      // Update game state with AI response
+      const updatedGameState: GameState = {
         ...gameState,
-        history: [...gameState.history, result.response],
-        currentLocation: result.location,
+        currentLocation: aiResponse.location,
         inventory: {
           ...gameState.inventory,
           [gameState.currentPlayer]: [
             ...(gameState.inventory[gameState.currentPlayer] || []),
-            ...result.newItems
+            ...aiResponse.newItems
           ]
         },
         equippedItems: {
           ...gameState.equippedItems,
           [gameState.currentPlayer]: [
             ...(gameState.equippedItems[gameState.currentPlayer] || []),
-            ...(result.equippedItems || [])
+            ...(aiResponse.equippedItems || [])
           ]
         },
-        foundItems: result.foundItems || []
+        foundItems: aiResponse.foundItems || [],
+        history: [...gameState.history, aiResponse.response]
       };
-
-      // Log the updated state
-      console.log('Updating game state:', updatedGameState);
-
-      // Update the game state in Supabase
+      
+      // Update game state in Supabase
       const { error: updateError } = await supabase
         .from('game_rooms')
-        .update({ game_state: updatedGameState })
-        .eq('id', roomId);
+        .update({
+          game_state: updatedGameState,
+          last_updated: new Date().toISOString()
+        })
+        .eq('room_id', roomId);
 
       if (updateError) {
         console.error('Error updating game state:', updateError);
-        setError('Failed to update game state');
-        return;
+        throw new Error('Failed to update game state');
       }
 
       // Update local state
