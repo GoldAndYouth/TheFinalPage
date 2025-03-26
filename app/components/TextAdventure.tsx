@@ -211,22 +211,19 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
       });
 
       // Update game state with AI response
-      const updatedGameState: GameState = {
+      const updatedGameState = {
         ...gameState,
-        currentLocation: aiResponse.location,
+        location: aiResponse.location,
         inventory: {
           ...gameState.inventory,
           [gameState.currentPlayer]: [
-            ...(gameState.inventory[gameState.currentPlayer] || []),
+            ...gameState.inventory[gameState.currentPlayer],
             ...aiResponse.newItems
           ]
         },
         equippedItems: {
           ...gameState.equippedItems,
-          [gameState.currentPlayer]: [
-            ...(gameState.equippedItems[gameState.currentPlayer] || []),
-            ...(aiResponse.equippedItems || [])
-          ]
+          [gameState.currentPlayer]: aiResponse.equippedItems || []
         },
         foundItems: aiResponse.foundItems || [],
         history: [...gameState.history, aiResponse.response]
