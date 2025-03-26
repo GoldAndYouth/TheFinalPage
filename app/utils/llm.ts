@@ -89,33 +89,32 @@ function getFallbackResponse(context: GameContext, action: string) {
 
 // System prompt that defines the game rules and behavior
 // This is sent to the LLM to guide its responses and maintain game consistency
-const SYSTEM_PROMPT = `You are a text adventure game engine. You should respond to player actions in an engaging, descriptive way.
-Current game rules:
-- Players can freely explore and interact with the environment
-- Available locations: cave, forest, and any logical connected areas
-- Players can pick up items, use them, and interact with characters
-- Keep responses concise (2-3 sentences max)
-- Include location hints in your response that match these keywords: cave, forest, sword, dragon
-- Make the story engaging but keep the tone appropriate for all ages
-- Don't allow obviously harmful or inappropriate actions
-- IMPORTANT: Items must be explicitly picked up with commands like "pick up", "take", or "grab"
-- When items are found, describe them but DO NOT add them to inventory automatically
-- Only add items to inventory when the player explicitly picks them up
-- When describing found items, use phrases like "you find", "you see", "there is", "you notice", "you spot", "you discover", or "you uncover"
-- When player uses "help" command, show:
-  1. Available commands and their descriptions
-  2. Current location and possible destinations
-  3. Current inventory and equipped items
-  4. Helpful tips for gameplay
+const SYSTEM_PROMPT = `You are a text adventure game AI. Your role is to:
+1. Respond to player actions with descriptive text
+2. Track the player's location and inventory
+3. Handle item interactions (pickup, use, etc.)
+4. Maintain game state and progression
 
-Return your response in this JSON format:
+Guidelines:
+- Keep responses concise and engaging
+- Use natural language for descriptions
+- Track inventory changes accurately
+- Handle item interactions logically
+- For found items, describe them but don't automatically add them to inventory
+- Use phrases like "you find", "you see", "there is", "you notice", "you spot", "you discover", "you uncover", "appears to be", "looks like", "seems to be" to describe items
+- Only items that are explicitly described as movable or portable should be pickable
+- Environmental features (walls, floors, fixed furniture, etc.) should not be pickable
+- Large or fixed objects should not be pickable
+- Only items that make sense to carry should be pickable
+
+Response format:
 {
-  "response": "Description of what happens",
-  "location": "current location keyword",
-  "newItems": ["any new items obtained"],
-  "removeItems": ["any items used or lost"],
-  "equippedItems": ["any items equipped"],
-  "foundItems": ["any items found but not yet picked up"]
+  "response": "Your descriptive text here",
+  "location": "current location name",
+  "newItems": ["item1", "item2"], // Items to add to inventory
+  "removeItems": ["item1", "item2"], // Items to remove from inventory
+  "equippedItems": ["item1", "item2"], // Items currently equipped
+  "foundItems": ["item1", "item2"] // Items found but not yet picked up
 }`;
 
 // Response used when API rate limit is exceeded
@@ -125,6 +124,60 @@ const API_LIMIT_MESSAGE = {
   newItems: [],
   removeItems: []
 };
+
+// Add a function to check if an item is pickable
+async function isItemPickable(item: string): Promise<boolean> {
+  const prompt = `Is this item pickable/portable in a text adventure game? Answer with just "yes" or "no":
+${item}`;
+  
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.NEXT_PUBLIC_OPENAI_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: "gpt-3.5-turbo",
+        messages: [
+          {
+            role: "system",
+            content: `You are a text adventure game item validator. Your job is to determine if an item can be picked up and carried by a player.
+Guidelines:
+- Only items that are explicitly movable or portable should be pickable
+- Environmental features (walls, floors, fixed furniture, etc.) should not be pickable
+- Large or fixed objects should not be pickable
+- Only items that make sense to carry should be pickable
+- Respond with just "yes" or "no"`
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        temperature: 0.1,
+        max_tokens: 10
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      console.error('Item Pickable Check Error:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorData
+      });
+      return false; // Default to not pickable if there's an error
+    }
+
+    const data = await response.json();
+    const answer = data.choices[0].message.content?.toLowerCase().trim();
+    return answer === "yes";
+  } catch (error) {
+    console.error("Error checking if item is pickable:", error);
+    return false; // Default to not pickable if there's an error
+  }
+}
 
 // Main function to process player actions and generate game responses
 export async function processGameAction(
@@ -248,13 +301,19 @@ Player action: ${action}`;
       /seems to be (?:a|an|the) ([^.!?]+)/i
     ];
 
+    // Process each pattern and check if items are pickable
     for (const pattern of itemPatterns) {
       const matches = parsedResponse.response.match(pattern);
       if (matches) {
         const item = matches[1].trim();
         // Clean up the item name by removing descriptive text
         const cleanItem = item.split(' ').slice(0, 3).join(' ').toLowerCase();
-        if (!foundItems.includes(cleanItem)) {
+        
+        // Check if the item is pickable
+        const isPickable = await isItemPickable(cleanItem);
+        console.log('Item pickable check:', { item: cleanItem, isPickable });
+        
+        if (isPickable && !foundItems.includes(cleanItem)) {
           foundItems.push(cleanItem);
         }
       }
