@@ -368,7 +368,11 @@ Player action: ${action}`;
       if (foundItems.length > 0) {
         let formattedResponse = parsedResponse.response;
         formattedResponse += `\n\nYou found: ${foundItems.join(', ')}`;
-        formattedResponse += '\nUse "pick up" or "take" to add items to your inventory.';
+        formattedResponse += '\n\nTo pick up items, use one of these commands:';
+        foundItems.forEach(item => {
+          formattedResponse += `\n- "take ${item}" or "pick up ${item}"`;
+        });
+        formattedResponse += '\nOr simply use "take" or "pick up" to pick up the first item.';
         return {
           response: formattedResponse,
           location: context.currentLocation,
