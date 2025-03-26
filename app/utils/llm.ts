@@ -229,15 +229,19 @@ Player action: ${action}`;
       };
     }
 
-    // Extract items from the response text
-    const itemPattern = /(?:you find|you see|there is|there's|you notice|you spot|you discover|you uncover) (?:a|an|the) ([^.!?]+)/gi;
+    // Extract found items from the response
     const foundItems: string[] = [];
-    let match;
-    while ((match = itemPattern.exec(parsedResponse.response)) !== null) {
-      const item = match[1].trim().toLowerCase();
-      if (!foundItems.includes(item)) {
-        foundItems.push(item);
-      }
+    const foundItemsMatch = parsedResponse.response.match(/You found: (.*?)(?:\n|$)/);
+    if (foundItemsMatch) {
+      const foundItemsText = foundItemsMatch[1];
+      // Split by commas and clean up each item
+      const items = foundItemsText.split(',').map((item: string) => {
+        // Remove any descriptive text after the item name
+        const cleanItem = item.trim().split(' ').slice(0, 2).join(' ');
+        return cleanItem;
+      });
+      console.log('Extracted found items:', items);
+      foundItems.push(...items);
     }
 
     // Handle pickup commands
