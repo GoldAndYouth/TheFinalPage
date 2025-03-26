@@ -231,7 +231,7 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
           game_state: updatedGameState,
           last_updated: new Date().toISOString()
         })
-        .eq('room_id', roomId);
+        .eq('id', roomId);
 
       if (updateError) {
         console.error('Error updating game state:', updateError);
