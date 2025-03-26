@@ -245,8 +245,7 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
       const { data: updateData, error: updateError } = await supabase
         .from('game_rooms')
         .update({
-          game_state: updatedGameState,
-          last_updated: new Date().toISOString()
+          game_state: updatedGameState
         })
         .eq('id', roomId)
         .select();
