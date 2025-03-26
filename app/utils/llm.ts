@@ -231,18 +231,36 @@ Player action: ${action}`;
 
     // Extract found items from the response
     const foundItems: string[] = [];
-    const foundItemsMatch = parsedResponse.response.match(/You found: (.*?)(?:\n|$)/);
-    if (foundItemsMatch) {
-      const foundItemsText = foundItemsMatch[1];
-      // Split by commas and clean up each item
-      const items = foundItemsText.split(',').map((item: string) => {
-        // Remove any descriptive text after the item name
-        const cleanItem = item.trim().split(' ').slice(0, 2).join(' ');
-        return cleanItem;
-      });
-      console.log('Extracted found items:', items);
-      foundItems.push(...items);
+    
+    // Look for items in various formats
+    const itemPatterns = [
+      /You found: (.*?)(?:\n|$)/i,
+      /you find (?:a|an|the) ([^.!?]+)/i,
+      /you see (?:a|an|the) ([^.!?]+)/i,
+      /there is (?:a|an|the) ([^.!?]+)/i,
+      /there's (?:a|an|the) ([^.!?]+)/i,
+      /you notice (?:a|an|the) ([^.!?]+)/i,
+      /you spot (?:a|an|the) ([^.!?]+)/i,
+      /you discover (?:a|an|the) ([^.!?]+)/i,
+      /you uncover (?:a|an|the) ([^.!?]+)/i,
+      /appears to be (?:a|an|the) ([^.!?]+)/i,
+      /looks like (?:a|an|the) ([^.!?]+)/i,
+      /seems to be (?:a|an|the) ([^.!?]+)/i
+    ];
+
+    for (const pattern of itemPatterns) {
+      const matches = parsedResponse.response.match(pattern);
+      if (matches) {
+        const item = matches[1].trim();
+        // Clean up the item name by removing descriptive text
+        const cleanItem = item.split(' ').slice(0, 3).join(' ').toLowerCase();
+        if (!foundItems.includes(cleanItem)) {
+          foundItems.push(cleanItem);
+        }
+      }
     }
+
+    console.log('Extracted found items:', foundItems);
 
     // Handle pickup commands
     if (action.toLowerCase().includes('pick up') || action.toLowerCase().includes('take')) {
