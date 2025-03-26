@@ -236,9 +236,16 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
       console.log('Updated game state before Supabase:', {
         location: updatedGameState.currentLocation,
         currentPlayer: updatedGameState.currentPlayer,
-        inventory: updatedGameState.inventory,
-        equippedItems: updatedGameState.equippedItems,
-        foundItems: updatedGameState.foundItems
+        inventory: {
+          ...updatedGameState.inventory,
+          [updatedGameState.currentPlayer]: updatedGameState.inventory[updatedGameState.currentPlayer] || []
+        },
+        equippedItems: {
+          ...updatedGameState.equippedItems,
+          [updatedGameState.currentPlayer]: updatedGameState.equippedItems[updatedGameState.currentPlayer] || []
+        },
+        foundItems: updatedGameState.foundItems,
+        history: updatedGameState.history.slice(-2) // Show last 2 history entries
       });
       
       // Update game state in Supabase
@@ -255,8 +262,18 @@ export default function TextAdventure({ players, roomId, playerId }: TextAdventu
         throw new Error('Failed to update game state');
       }
 
-      // Log the Supabase response
-      console.log('Supabase update response:', updateData);
+      // Log the Supabase response with more detail
+      console.log('Supabase update response:', {
+        success: !!updateData,
+        data: updateData ? {
+          id: updateData[0]?.id,
+          game_state: {
+            inventory: updateData[0]?.game_state?.inventory,
+            foundItems: updateData[0]?.game_state?.foundItems,
+            currentPlayer: updateData[0]?.game_state?.currentPlayer
+          }
+        } : null
+      });
 
       // Update local state
       setGameState(updatedGameState);
